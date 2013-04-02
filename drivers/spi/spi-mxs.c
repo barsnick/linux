@@ -61,6 +61,8 @@
 struct mxs_spi {
 	struct mxs_ssp		ssp;
 	struct completion	c;
+	/* Rate requested (vs actual) */
+	unsigned int		sck;
 };
 
 static int mxs_spi_setup_transfer(struct spi_device *dev,
@@ -89,8 +91,22 @@ static int mxs_spi_setup_transfer(struct spi_device *dev,
 		return -EINVAL;
 	}
 
-	mxs_ssp_set_clk_rate(ssp, hz);
+	if (hz != spi->sck) {
+		mxs_ssp_set_clk_rate(ssp, hz);
+		/*
+		 * Save requested value, not actual value from ssp->clk_rate.
+		 * Otherwise we would set the rate again each transfer when
+		 * actual is not quite the same as requested.
+		 */
+		spi->sck = hz;
+		/*
+		 * Perhaps we should return an error if the actual clock is
+		 * nowhere close to what was requested?
+		 */
+	}
 
+	writel(BM_SSP_CTRL0_LOCK_CS,
+		ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_SET);
 	writel(BF_SSP_CTRL1_SSP_MODE(BV_SSP_CTRL1_SSP_MODE__SPI) |
 		     BF_SSP_CTRL1_WORD_LENGTH
 		     (BV_SSP_CTRL1_WORD_LENGTH__EIGHT_BITS) |
@@ -143,38 +159,6 @@ static uint32_t mxs_spi_cs_to_reg(unsigned cs)
 	return select;
 }
 
-static void mxs_spi_set_cs(struct mxs_spi *spi, unsigned cs)
-{
-	const uint32_t mask =
-		BM_SSP_CTRL0_WAIT_FOR_CMD | BM_SSP_CTRL0_WAIT_FOR_IRQ;
-	uint32_t select;
-	struct mxs_ssp *ssp = &spi->ssp;
-
-	writel(mask, ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_CLR);
-	select = mxs_spi_cs_to_reg(cs);
-	writel(select, ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_SET);
-}
-
-static inline void mxs_spi_enable(struct mxs_spi *spi)
-{
-	struct mxs_ssp *ssp = &spi->ssp;
-
-	writel(BM_SSP_CTRL0_LOCK_CS,
-		ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_SET);
-	writel(BM_SSP_CTRL0_IGNORE_CRC,
-		ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_CLR);
-}
-
-static inline void mxs_spi_disable(struct mxs_spi *spi)
-{
-	struct mxs_ssp *ssp = &spi->ssp;
-
-	writel(BM_SSP_CTRL0_LOCK_CS,
-		ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_CLR);
-	writel(BM_SSP_CTRL0_IGNORE_CRC,
-		ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_SET);
-}
-
 static int mxs_ssp_wait(struct mxs_spi *spi, int offset, int mask, bool set)
 {
 	const unsigned long timeout = jiffies + msecs_to_jiffies(SSP_TIMEOUT);
@@ -212,7 +196,7 @@ static irqreturn_t mxs_ssp_irq_handler(int irq, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-static int mxs_spi_txrx_dma(struct mxs_spi *spi, int cs,
+static int mxs_spi_txrx_dma(struct mxs_spi *spi,
 			    unsigned char *buf, int len,
 			    int *first, int *last, int write)
 {
@@ -240,12 +224,12 @@ static int mxs_spi_txrx_dma(struct mxs_spi *spi, int cs,
 
 	INIT_COMPLETION(spi->c);
 
+	/* Chip select was already programmed into CTRL0 */
 	ctrl0 = readl(ssp->base + HW_SSP_CTRL0);
-	ctrl0 &= ~BM_SSP_CTRL0_XFER_COUNT;
-	ctrl0 |= BM_SSP_CTRL0_DATA_XFER | mxs_spi_cs_to_reg(cs);
+	ctrl0 &= ~(BM_SSP_CTRL0_XFER_COUNT | BM_SSP_CTRL0_IGNORE_CRC |
+		 BM_SSP_CTRL0_READ);
+	ctrl0 |= BM_SSP_CTRL0_DATA_XFER;
 
-	if (*first)
-		ctrl0 |= BM_SSP_CTRL0_LOCK_CS;
 	if (!write)
 		ctrl0 |= BM_SSP_CTRL0_READ;
 
@@ -344,20 +328,21 @@ err_mapped:
 	return ret;
 }
 
-static int mxs_spi_txrx_pio(struct mxs_spi *spi, int cs,
+static int mxs_spi_txrx_pio(struct mxs_spi *spi,
 			    unsigned char *buf, int len,
 			    int *first, int *last, int write)
 {
 	struct mxs_ssp *ssp = &spi->ssp;
 
-	if (*first)
-		mxs_spi_enable(spi);
-
-	mxs_spi_set_cs(spi, cs);
+	/* Clear this now, set it on last transfer if needed */
+	writel(BM_SSP_CTRL0_IGNORE_CRC,
+	       ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_CLR);
 
 	while (len--) {
-		if (*last && len == 0)
-			mxs_spi_disable(spi);
+		if (*last && len == 0) {
+			writel(BM_SSP_CTRL0_IGNORE_CRC,
+			       ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_SET);
+		}
 
 		if (ssp->devid == IMX23_SSP) {
 			writel(BM_SSP_CTRL0_XFER_COUNT,
@@ -415,11 +400,14 @@ static int mxs_spi_transfer_one(struct spi_master *master,
 	int first, last;
 	struct spi_transfer *t, *tmp_t;
 	int status = 0;
-	int cs;
 
 	first = last = 0;
 
-	cs = m->spi->chip_select;
+	/* Program CS register bits here, it will be used for all transfers. */
+	writel(BM_SSP_CTRL0_WAIT_FOR_CMD | BM_SSP_CTRL0_WAIT_FOR_IRQ,
+	       ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_CLR);
+	writel(mxs_spi_cs_to_reg(m->spi->chip_select),
+	       ssp->base + HW_SSP_CTRL0 + STMP_OFFSET_REG_SET);
 
 	list_for_each_entry_safe(t, tmp_t, &m->transfers, transfer_list) {
 
@@ -453,11 +441,11 @@ static int mxs_spi_transfer_one(struct spi_master *master,
 				STMP_OFFSET_REG_CLR);
 
 			if (t->tx_buf)
-				status = mxs_spi_txrx_pio(spi, cs,
+				status = mxs_spi_txrx_pio(spi,
 						(void *)t->tx_buf,
 						t->len, &first, &last, 1);
 			if (t->rx_buf)
-				status = mxs_spi_txrx_pio(spi, cs,
+				status = mxs_spi_txrx_pio(spi,
 						t->rx_buf, t->len,
 						&first, &last, 0);
 		} else {
@@ -466,11 +454,11 @@ static int mxs_spi_transfer_one(struct spi_master *master,
 				STMP_OFFSET_REG_SET);
 
 			if (t->tx_buf)
-				status = mxs_spi_txrx_dma(spi, cs,
+				status = mxs_spi_txrx_dma(spi,
 						(void *)t->tx_buf, t->len,
 						&first, &last, 1);
 			if (t->rx_buf)
-				status = mxs_spi_txrx_dma(spi, cs,
+				status = mxs_spi_txrx_dma(spi,
 						t->rx_buf, t->len,
 						&first, &last, 0);
 		}
@@ -576,7 +564,6 @@ static int mxs_spi_probe(struct platform_device *pdev)
 
 	clk_prepare_enable(ssp->clk);
 	clk_set_rate(ssp->clk, clk_freq);
-	ssp->clk_rate = clk_get_rate(ssp->clk) / 1000;
 
 	stmp_reset_block(ssp->base);
 
