@@ -175,6 +175,8 @@ enum mac_oui {
 	OUI_FSL,
 	OUI_DENX,
 	OUI_CRYSTALFONTZ,
+	OUI_QCA,
+	OUI_I2SE
 };
 
 static void __init update_fec_mac_prop(enum mac_oui oui)
@@ -228,6 +230,16 @@ static void __init update_fec_mac_prop(enum mac_oui oui)
 			macaddr[0] = 0x58;
 			macaddr[1] = 0xb9;
 			macaddr[2] = 0xe1;
+			break;
+		case OUI_QCA:
+			macaddr[0] = 0x00;
+			macaddr[1] = 0xB0;
+			macaddr[2] = 0x52;
+			break;
+		case OUI_I2SE:
+			macaddr[0] = 0x00;
+			macaddr[1] = 0x01;
+			macaddr[2] = 0x87;
 			break;
 		}
 		val = ocotp[i];
