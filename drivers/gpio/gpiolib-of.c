@@ -83,7 +83,8 @@ int of_get_named_gpio_flags(struct device_node *np, const char *propname,
 	ret = of_parse_phandle_with_args(np, propname, "#gpio-cells", index,
 					 &gg_data.gpiospec);
 	if (ret) {
-		pr_debug("%s: can't parse gpios property\n", __func__);
+		pr_debug("%s: can't parse property '%s' of gpio %d\n",
+			 __func__, propname, index);
 		return ret;
 	}
 
