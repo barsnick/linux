@@ -1063,6 +1063,8 @@ static void fec_get_mac(struct net_device *ndev)
 
 /* ------------------------------------------------------------------------- */
 
+static void set_multicast_list(struct net_device *ndev);
+
 /*
  * Phy section
  */
@@ -1093,8 +1095,10 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 		}
 
 		/* if any of the above changed restart the FEC */
-		if (status_change)
+		if (status_change) {
 			fec_restart(ndev, phy_dev->duplex);
+			set_multicast_list(ndev);
+		}
 	} else {
 		if (fep->link) {
 			fec_stop(ndev);
