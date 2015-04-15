@@ -275,6 +275,11 @@ static void __init imx28_evk_post_init(void)
 	}
 }
 
+static void __init duckbill_init(void)
+{
+	update_fec_mac_prop(OUI_I2SE);
+}
+
 static int apx4devkit_phy_fixup(struct phy_device *phy)
 {
 	phy->dev_flags |= MICREL_PHY_50MHZ_CLK;
@@ -378,6 +383,8 @@ static void __init mxs_machine_init(void)
 {
 	if (of_machine_is_compatible("fsl,imx28-evk"))
 		imx28_evk_init();
+	else if (of_machine_is_compatible("i2se,imx28-duckbill"))
+		duckbill_init();
 	else if (of_machine_is_compatible("bluegiga,apx4devkit"))
 		apx4devkit_init();
 	else if (of_machine_is_compatible("crystalfontz,cfa10037"))
