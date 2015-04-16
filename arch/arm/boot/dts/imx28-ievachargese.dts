@@ -213,6 +213,7 @@
 	ahb@80080000 {
 		usb0: usb@80080000 {
 			status = "okay";
+			dr_mode = "host";
 		};
 
 		usb1: usb@80090000 {
