@@ -52,6 +52,7 @@ static void __iomem *clkctrl;
 #define BP_ENET_SLEEP		31
 #define BP_CLKSEQ_BYPASS_SAIF0	0
 #define BP_CLKSEQ_BYPASS_SSP0	3
+#define BP_CLKSEQ_BYPASS_SSP2	5
 #define BP_FRAC0_IO1FRAC	16
 #define BP_FRAC0_IO0FRAC	24
 
@@ -113,6 +114,9 @@ static void __init clk_misc_init(void)
 	 * as ref_xtal only provides 24 MHz as maximum.
 	 */
 	writel_relaxed(0xf << BP_CLKSEQ_BYPASS_SSP0, CLKSEQ + CLR);
+
+	/* Set BYPASS for SSP2 because of bit errors with QCA7000 */
+	writel_relaxed(0x1 << BP_CLKSEQ_BYPASS_SSP2, CLKSEQ + SET);
 
 	/*
 	 * 480 MHz seems too high to be ssp clock source directly,
