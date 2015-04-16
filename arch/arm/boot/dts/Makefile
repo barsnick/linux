@@ -131,6 +131,7 @@ dtb-$(CONFIG_ARCH_MXS) += imx23-evk.dtb \
 	imx28-cfa10037.dtb \
 	imx28-cfa10049.dtb \
 	imx28-evk.dtb \
+	imx28-ievachargese.dtb \
 	imx28-m28evk.dtb \
 	imx28-sps1.dtb \
 	imx28-tx28.dtb
