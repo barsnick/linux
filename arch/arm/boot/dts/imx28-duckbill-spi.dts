@@ -1,0 +1,172 @@
+/*
+ * Copyright 2013 I2SE GmbH
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+/dts-v1/;
+/include/ "imx28.dtsi"
+
+/ {
+	model = "I2SE Duckbill SPI";
+	compatible = "i2se,imx28-duckbill-spi", "fsl,imx28";
+
+	aliases {
+		spi1 = &ssp2;	// give QCA7000 fixed name
+	};
+
+	memory {
+		reg = <0x40000000 0x08000000>;
+	};
+
+	apb@80000000 {
+		apbh@80000000 {
+			hsadc@80002000 {
+				status = "okay";
+			};
+
+			ssp0: ssp@80010000 {
+				compatible = "fsl,imx28-mmc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mmc0_4bit_pins_a
+					&mmc0_cd_cfg &mmc0_sck_cfg>;
+				bus-width = <4>;
+				vmmc-supply = <&reg_3p3v>;
+				status = "okay";
+			};
+
+			ssp2: ssp@80014000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,imx28-spi";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi2_pins_a>;
+				status = "okay";
+				
+				qca7000: qca7000@0 {	
+					compatible = "qca,qca7000";
+					interrupt-parent = <&gpio3>;
+					interrupts = <3 0x1>;
+					spi-cpha;
+					spi-cpol;
+					spi-max-frequency = <8000000>;
+					reg = <0x0>;
+				}; 
+
+			};
+
+
+			pinctrl@80018000 {
+				pinctrl-names = "default";
+
+				qca7k: qca7k@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x3193 /* MX28_PAD_I2C0_SDA__GPIO_3_25, SPI_INT */
+						0x10d3 /* MX28_PAD_LCD_D13__GPIO_1_13, QCA7K_RESET */
+						0x10e3 /* MX28_PAD_LCD_D14__GPIO_1_14, GPIO_0 */
+						0x10f3 /* MX28_PAD_LCD_D15__GPIO_1_15, GPIO_1 */
+						0x1123 /* MX28_PAD_LCD_D18__GPIO_1_18, GPIO_2 */
+						0x1153 /* MX28_PAD_LCD_D21__GPIO_1_21, GPIO_3 */
+					>;
+					fsl,drive-strength = <0>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
+
+				led_pins: led_pins@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						0x3043 /* MX28_PAD_AUART1_RX__GPIO_3_4, LED_0 */
+						0x3053 /* MX28_PAD_AUART1_TX__GPIO_3_5, LED_1 */
+					>;
+					fsl,drive-strength = <0>;
+					fsl,voltage = <1>;
+					fsl,pull-up = <0>;
+				};
+			};
+		};
+
+		apbx@80040000 {
+			lradc@80050000 {
+				status = "okay";
+			};
+
+			duart: serial@80074000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&duart_pins_a>;
+				status = "okay";
+			};
+
+			auart0: serial@8006a000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart0_2pins_a>;
+				status = "okay";
+			};
+
+			usbphy0: usbphy@8007c000 {
+				status = "okay";
+			};
+
+			i2c0: i2c@80058000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c0_pins_a>;
+				status = "okay";
+			};
+		};
+	};
+
+	ahb@80080000 {
+		usb0: usb@80080000 {
+			status = "okay";
+		};
+
+		mac0: ethernet@800f0000 {
+			phy-mode = "rmii";
+			pinctrl-names = "default";
+			pinctrl-0 = <&mac0_pins_a>;
+			phy-supply = <&reg_3p3v>;
+			phy-reset-gpios = <&gpio2 7 0>; /* MX28_PAD_SSP0_DATA7__GPIO_2_7 */
+			phy-reset-duration = <100>;
+			status = "okay";
+		};
+	};
+
+	regulators {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		reg_3p3v: regulator@0 {
+			compatible = "regulator-fixed";
+			reg = <0>;
+			regulator-name = "3P3V";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+	};
+
+	leds {
+		compatible = "gpio-leds";
+		pinctrl-names = "default";
+		pinctrl-0 = <&led_pins>;
+
+		led0 {			// Boot
+			label = "duckbill:red";
+			gpios = <&gpio3 4 0>;
+			linux,default-trigger = "default-on";
+		};
+
+		led1 {			// Heartbeat
+			label = "duckbill:green";
+			gpios = <&gpio3 5 0>;
+			linux,default-trigger = "heartbeat";
+		};
+	};
+};
