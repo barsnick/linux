@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 I2SE GmbH <info@i2se.com>
+ * Copyright (C) 2015-2016 I2SE GmbH <info@i2se.com>
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -19,12 +19,22 @@
 
 	apb@80000000 {
 		apbh@80000000 {
+			ssp2: ssp@80014000 {
+				compatible = "fsl,imx28-mmc";
+				pinctrl-names = "default";
+				pinctrl-0 = <&mmc2_4bit_pins_b
+					&mmc2_cd_cfg &mmc2_sck_cfg_b>;
+				bus-width = <4>;
+				vmmc-supply = <&reg_3p3v>;
+				status = "okay";
+			};
+
 			pinctrl@80018000 {
 				rs485_led_pins: rs485_led_pins@0 {
 					reg = <0>;
 					fsl,pinmux-ids = <
-						MX28_PAD_SSP2_SCK__GPIO_2_16
-						MX28_PAD_SSP2_MISO__GPIO_2_18
+						MX28_PAD_I2C0_SCL__GPIO_3_24
+						MX28_PAD_I2C0_SDA__GPIO_3_25
 					>;
 					fsl,drive-strength = <MXS_DRIVE_4mA>;
 					fsl,voltage = <MXS_VOLTAGE_HIGH>;
@@ -49,12 +59,12 @@
 
 		rs485_red {
 			label = "duckbill:red:rs485";
-			gpios = <&gpio2 16 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio3 24 GPIO_ACTIVE_LOW>;
 		};
 
 		rs485_green {
 			label = "duckbill:green:rs485";
-			gpios = <&gpio2 18 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio3 25 GPIO_ACTIVE_LOW>;
 		};
 	};
 };
