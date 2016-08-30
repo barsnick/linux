@@ -38,12 +38,23 @@
 #include <linux/types.h>
 
 #include "qca_common.h"
-#include "qca_uart.h"
 
 #define QCAUART_DRV_VERSION "0.0.6"
 #define QCAUART_DRV_NAME "qcauart"
 #define QCAUART_MTU QCAFRM_ETHMAXMTU
 #define QCAUART_TX_TIMEOUT (1 * HZ)
+
+struct qcauart {
+	struct net_device *net_dev;
+	struct net_device_stats stats;
+
+	struct tty_struct *tty;
+
+	struct qcafrm_handle frm_handle;
+
+	struct sk_buff *rx_skb;
+	struct sk_buff *tx_skb;
+};
 
 static struct net_device *qcauart_dev;
 
