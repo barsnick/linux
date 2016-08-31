@@ -253,7 +253,7 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	skb_pull(skb, written);
 
 	qca->tx_skb = skb;
-	netif_trans_update(dev);
+	dev->trans_start = jiffies;
 
 	return NETDEV_TX_OK;
 }
@@ -264,7 +264,7 @@ qcauart_netdev_tx_timeout(struct net_device *dev)
 	struct qcauart *qca = netdev_priv(dev);
 
 	netdev_info(qca->net_dev, "Transmit timeout at %ld, latency %ld\n",
-		    jiffies, jiffies - dev_trans_start(dev));
+		    jiffies, jiffies - dev->trans_start);
 	qca->stats.tx_errors++;
 	qca->stats.tx_dropped++;
 

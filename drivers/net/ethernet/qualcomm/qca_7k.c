@@ -23,11 +23,7 @@
  *   kernel-based SPI device.
  */
 
-#include <linux/init.h>
-#include <linux/module.h>
-#include <linux/moduleparam.h>
 #include <linux/spi/spi.h>
-#include <linux/version.h>
 
 #include "qca_7k.h"
 
@@ -41,6 +37,7 @@ qcaspi_spi_error(struct qcaspi *qca)
 	qca->sync = QCASPI_SYNC_UNKNOWN;
 	qca->stats.spi_err++;
 }
+EXPORT_SYMBOL_GPL(qcaspi_spi_error);
 
 int
 qcaspi_read_register(struct qcaspi *qca, u16 reg, u16 *result)
@@ -83,6 +80,7 @@ qcaspi_read_register(struct qcaspi *qca, u16 reg, u16 *result)
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(qcaspi_read_register);
 
 int
 qcaspi_write_register(struct qcaspi *qca, u16 reg, u16 value)
@@ -123,27 +121,4 @@ qcaspi_write_register(struct qcaspi *qca, u16 reg, u16 value)
 
 	return ret;
 }
-
-int
-qcaspi_tx_cmd(struct qcaspi *qca, u16 cmd)
-{
-	__be16 tx_data;
-	struct spi_message *msg = &qca->spi_msg1;
-	struct spi_transfer *transfer = &qca->spi_xfer1;
-	int ret;
-
-	tx_data = cpu_to_be16(cmd);
-	transfer->len = sizeof(tx_data);
-	transfer->tx_buf = &tx_data;
-	transfer->rx_buf = NULL;
-
-	ret = spi_sync(qca->spi_dev, msg);
-
-	if (!ret)
-		ret = msg->status;
-
-	if (ret)
-		qcaspi_spi_error(qca);
-
-	return ret;
-}
+EXPORT_SYMBOL_GPL(qcaspi_write_register);

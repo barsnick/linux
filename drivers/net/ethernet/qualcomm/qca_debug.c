@@ -175,6 +175,9 @@ qcaspi_remove_device_debugfs(struct qcaspi *qca)
 
 #endif
 
+EXPORT_SYMBOL_GPL(qcaspi_init_device_debugfs);
+EXPORT_SYMBOL_GPL(qcaspi_remove_device_debugfs);
+
 static void
 qcaspi_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *p)
 {
@@ -273,6 +276,7 @@ qcaspi_get_ringparam(struct net_device *dev, struct ethtool_ringparam *ring)
 static int
 qcaspi_set_ringparam(struct net_device *dev, struct ethtool_ringparam *ring)
 {
+	const struct net_device_ops *ops = dev->netdev_ops;
 	struct qcaspi *qca = netdev_priv(dev);
 
 	if ((ring->rx_pending) ||
@@ -281,13 +285,13 @@ qcaspi_set_ringparam(struct net_device *dev, struct ethtool_ringparam *ring)
 		return -EINVAL;
 
 	if (netif_running(dev))
-		qcaspi_netdev_close(dev);
+		ops->ndo_stop(dev);
 
 	qca->txr.count = max_t(u32, ring->tx_pending, TX_RING_MIN_LEN);
 	qca->txr.count = min_t(u16, qca->txr.count, TX_RING_MAX_LEN);
 
 	if (netif_running(dev))
-		qcaspi_netdev_open(dev);
+		ops->ndo_open(dev);
 
 	return 0;
 }
@@ -309,3 +313,4 @@ void qcaspi_set_ethtool_ops(struct net_device *dev)
 {
 	dev->ethtool_ops = &qcaspi_ethtool_ops;
 }
+EXPORT_SYMBOL_GPL(qcaspi_set_ethtool_ops);
