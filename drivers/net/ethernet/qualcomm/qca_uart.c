@@ -140,7 +140,7 @@ qca_tty_wakeup(struct tty_struct *tty)
 int
 qca_tty_open(struct tty_struct *tty)
 {
-	struct qcauart *qca = tty->disc_data;
+	struct qcauart *qca;
 
 	if (!capable(CAP_NET_ADMIN))
 		return -EPERM;
@@ -148,7 +148,13 @@ qca_tty_open(struct tty_struct *tty)
 	if (!tty->ops->write)
 		return -EOPNOTSUPP;
 
+	if (tty->disc_data)
+		return -EEXIST;
+
+	qca = netdev_priv(qcauart_dev);
 	qca->tty = tty;
+	tty->disc_data = qca;
+	tty->receive_room = 65536;
 	netif_carrier_on(qca->net_dev);
 
 	return 0;
@@ -157,12 +163,16 @@ qca_tty_open(struct tty_struct *tty)
 void
 qca_tty_close(struct tty_struct *tty)
 {
-	struct qcauart *qca = tty->disc_data;
+	struct qcauart *qca = (void *)tty->disc_data;
 
 	if (!qca)
 		return;
 
 	netif_carrier_off(qca->net_dev);
+	qca->tty = NULL;
+
+	/* Detach from the tty */
+	tty->disc_data = NULL;
 }
 
 static struct tty_ldisc_ops qca_ldisc = {
