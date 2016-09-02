@@ -63,6 +63,11 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 {
 	struct qcauart *qca = tty->disc_data;
 
+	if (!qca) {
+		pr_err("%s: qca priv is null\n", __func__);
+		return;
+	}
+
 	if (!qca->rx_skb) {
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
 					       VLAN_ETH_HLEN);
@@ -119,6 +124,16 @@ qca_tty_wakeup(struct tty_struct *tty)
 {
 	struct qcauart *qca = tty->disc_data;
 	int written;
+
+	if (!qca) {
+		pr_err("%s: qca priv is null\n", __func__);
+		return;
+	}
+
+	if (!qca->tx_skb) {
+		netdev_err(qca->net_dev, "%s: tx_skb is null\n", __func__);
+		return;
+	}
 
 	if (qca->tx_skb->len == 0) {
 		dev_kfree_skb(qca->tx_skb);
@@ -202,6 +217,11 @@ int
 qcauart_netdev_close(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
+
+	if (qca->tty) {
+		/* TTY discipline is running. */
+		clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
+	}
 
 	netif_stop_queue(dev);
 
