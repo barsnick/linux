@@ -340,12 +340,12 @@ qcauart_netdev_setup(struct net_device *dev)
 
 static int __init qca_uart_mod_init(void)
 {
-	struct qcauart *qca = NULL;
+	struct qcauart *qca;
 	int ret;
 
 	ret = tty_register_ldisc(N_QCA7K, &qca_ldisc);
 	if (ret) {
-		pr_err("qca_uart: Can't register line discipline (ret = %d)\n",
+		pr_err("qca_uart: Can't register line discipline (ret %d)\n",
 		       ret);
 		return ret;
 	}
@@ -384,14 +384,22 @@ static int __init qca_uart_mod_init(void)
 
 static void __exit qca_uart_mod_exit(void)
 {
+	struct qcauart *qca;
 	int ret;
 
+	qca = netdev_priv(qcauart_dev);
+	if (qca->tty)
+		tty_hangup(qca->tty);
+
 	unregister_netdev(qcauart_dev);
-	ret = tty_unregister_ldisc(N_QCA7K);
-	if (ret)
-		pr_err("qca_uart: Can't unregister line discipline\n");
 
 	free_netdev(qcauart_dev);
+	qcauart_dev = NULL;
+
+	ret = tty_unregister_ldisc(N_QCA7K);
+	if (ret)
+		pr_err("qca_uart: can't unregister line discipline (ret %d)\n",
+		       ret);
 }
 
 module_init(qca_uart_mod_init);
