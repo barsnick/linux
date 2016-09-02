@@ -17,17 +17,12 @@
 	model = "I2SE Duckbill 2 SPI";
 	compatible = "i2se,duckbill", "fsl,imx28";
 
-	aliases {
-		ethernet1 = &qca7000;
-	};
-
 	apb@80000000 {
 		apbh@80000000 {
 			ssp2: ssp@80014000 {
 				compatible = "fsl,imx28-spi";
 				pinctrl-names = "default";
 				pinctrl-0 = <&spi2_pins_a>;
-				status = "okay";
 
 				qca7000: ethernet@0 {
 					compatible = "qca,qca7000";
@@ -64,6 +59,7 @@
 			auart0: serial@8006a000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart0_2pins_a>;
+				status = "okay";
 			};
 		};
 	};
