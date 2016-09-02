@@ -22,6 +22,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 
 #include "qca_common.h"
 
@@ -169,3 +170,8 @@ qcacmn_netdev_change_mtu(struct net_device *dev, int new_mtu)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(qcacmn_netdev_change_mtu);
+
+MODULE_DESCRIPTION("Qualcomm Atheros Common");
+MODULE_AUTHOR("Qualcomm Atheros Communications");
+MODULE_AUTHOR("Stefan Wahren <stefan.wahren@i2se.com>");
+MODULE_LICENSE("Dual BSD/GPL");

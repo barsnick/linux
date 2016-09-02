@@ -37,7 +37,6 @@ qcaspi_spi_error(struct qcaspi *qca)
 	qca->sync = QCASPI_SYNC_UNKNOWN;
 	qca->stats.spi_err++;
 }
-EXPORT_SYMBOL_GPL(qcaspi_spi_error);
 
 int
 qcaspi_read_register(struct qcaspi *qca, u16 reg, u16 *result)
@@ -80,7 +79,6 @@ qcaspi_read_register(struct qcaspi *qca, u16 reg, u16 *result)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(qcaspi_read_register);
 
 int
 qcaspi_write_register(struct qcaspi *qca, u16 reg, u16 value)
@@ -121,4 +119,3 @@ qcaspi_write_register(struct qcaspi *qca, u16 reg, u16 value)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(qcaspi_write_register);

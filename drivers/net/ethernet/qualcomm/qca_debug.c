@@ -175,9 +175,6 @@ qcaspi_remove_device_debugfs(struct qcaspi *qca)
 
 #endif
 
-EXPORT_SYMBOL_GPL(qcaspi_init_device_debugfs);
-EXPORT_SYMBOL_GPL(qcaspi_remove_device_debugfs);
-
 static void
 qcaspi_get_drvinfo(struct net_device *dev, struct ethtool_drvinfo *p)
 {
@@ -313,4 +310,3 @@ void qcaspi_set_ethtool_ops(struct net_device *dev)
 {
 	dev->ethtool_ops = &qcaspi_ethtool_ops;
 }
-EXPORT_SYMBOL_GPL(qcaspi_set_ethtool_ops);
