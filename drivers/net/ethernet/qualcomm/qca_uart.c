@@ -22,6 +22,8 @@
  *   serial converter;
  */
 
+#define DEBUG
+
 #include <linux/errno.h>
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
@@ -47,13 +49,18 @@
 struct qcauart {
 	struct net_device *net_dev;
 	struct net_device_stats stats;
+	spinlock_t lock;
+	struct work_struct tx_work;		/* Flushes transmit buffer   */
 
 	struct tty_struct *tty;
+
+	unsigned char xbuff[QCAUART_MTU];	/* transmitter buffer        */
+	unsigned char *xhead;			/* pointer to next XMIT byte */
+	int xleft;				/* bytes left in XMIT queue  */
 
 	struct qcafrm_handle frm_handle;
 
 	struct sk_buff *rx_skb;
-	struct sk_buff *tx_skb;
 };
 
 static struct net_device *qcauart_dev;
@@ -114,32 +121,44 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 	}
 }
 
-void
-qca_tty_wakeup(struct tty_struct *tty)
+/* Write out any remaining transmit buffer. Scheduled when tty is writable */
+static void qcauart_transmit(struct work_struct *work)
 {
-	struct qcauart *qca = tty->disc_data;
+	struct qcauart *qca = container_of(work, struct qcauart, tx_work);
 	int written;
 
-	if (!qca->tx_skb) {
-		netdev_dbg(qca->net_dev, "%s: tx_skb is null\n", __func__);
+	spin_lock_bh(&qca->lock);
+	/* First make sure we're connected. */
+	if (!qca->tty || !netif_running(qca->net_dev)) {
+		spin_unlock_bh(&qca->lock);
 		return;
 	}
 
-	if (qca->tx_skb->len == 0) {
-		dev_kfree_skb(qca->tx_skb);
-		qca->tx_skb = NULL;
-		clear_bit(TTY_DO_WRITE_WAKEUP, &tty->flags);
-		netdev_dbg(qca->net_dev, "%s: exit early\n", __func__);
+	if (qca->xleft <= 0)  {
+		/* Now serial buffer is almost free & we can start
+		 * transmission of another packet */
 		qca->stats.tx_packets++;
-		if (netif_queue_stopped(qca->net_dev))
-			netif_wake_queue(qca->net_dev);
+		clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
+		spin_unlock_bh(&qca->lock);
+		netif_wake_queue(qca->net_dev);
 		return;
 	}
 
-	written = tty->ops->write(qca->tty, qca->tx_skb->data,
-				  qca->tx_skb->len);
-	qca->stats.tx_bytes += written;
-	skb_pull(qca->tx_skb, written);
+	written = qca->tty->ops->write(qca->tty, qca->xhead, qca->xleft);
+	qca->xleft -= written;
+	qca->xhead += written;
+	spin_unlock_bh(&qca->lock);
+}
+
+/*
+ * Called by the driver when there's room for more data.
+ * Schedule the transmit.
+ */
+static void qca_tty_wakeup(struct tty_struct *tty)
+{
+	struct qcauart *qca = tty->disc_data;
+
+	schedule_work(&qca->tx_work);
 }
 
 int
@@ -196,7 +215,6 @@ qcauart_netdev_open(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
-	qca->tx_skb = NULL;
 	qcafrm_fsm_init(&qca->frm_handle);
 	netif_start_queue(qca->net_dev);
 
@@ -208,17 +226,14 @@ qcauart_netdev_close(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
+	spin_lock_bh(&qca->lock);
 	if (qca->tty) {
 		/* TTY discipline is running. */
 		clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
 	}
-
 	netif_stop_queue(dev);
-
-	if (qca->tx_skb) {
-		dev_kfree_skb(qca->tx_skb);
-		qca->tx_skb = NULL;
-	}
+	qca->xleft = 0;
+	spin_unlock_bh(&qca->lock);
 
 	return 0;
 }
@@ -226,55 +241,53 @@ qcauart_netdev_close(struct net_device *dev)
 netdev_tx_t
 qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-	u32 frame_len;
-	u8 *ptmp;
+	u8 *pos;
 	struct qcauart *qca = netdev_priv(dev);
-	struct sk_buff *tskb;
 	u8 pad_len = 0;
 	int written;
+
+	spin_lock(&qca->lock);
+
+	if (!netif_running(dev))  {
+		spin_unlock(&qca->lock);
+		netdev_warn(qca->net_dev, "xmit: iface is down\n");
+		goto out;
+	}
+	if (qca->tty == NULL) {
+		spin_unlock(&qca->lock);
+		goto out;
+	}
+
+	pos = qca->xbuff;
 
 	if (skb->len < QCAFRM_ETHMINLEN)
 		pad_len = QCAFRM_ETHMINLEN - skb->len;
 
-	if (skb_headroom(skb) < QCAFRM_HEADER_LEN ||
-	    skb_tailroom(skb) < QCAFRM_FOOTER_LEN + pad_len) {
-		tskb = skb_copy_expand(skb, QCAFRM_HEADER_LEN,
-				       QCAFRM_FOOTER_LEN + pad_len, GFP_ATOMIC);
-		if (!tskb) {
-			netdev_dbg(qca->net_dev, "%s: could not allocate tx_buff\n",
-				   __func__);
-			return NETDEV_TX_BUSY;
-		}
-		dev_kfree_skb(skb);
-		skb = tskb;
-	}
+	pos += qcafrm_create_header(pos, skb->len + pad_len);
 
-	frame_len = skb->len + pad_len;
-
-	ptmp = skb_push(skb, QCAFRM_HEADER_LEN);
-	qcafrm_create_header(ptmp, frame_len);
+	memcpy(pos, skb->data, skb->len);
+	pos += skb->len;
 
 	if (pad_len) {
-		ptmp = skb_put(skb, pad_len);
-		memset(ptmp, 0, pad_len);
+		memset(pos, 0, pad_len);
+		pos += pad_len;
 	}
 
-	ptmp = skb_put(skb, QCAFRM_FOOTER_LEN);
-	qcafrm_create_footer(ptmp);
-
-	netdev_dbg(qca->net_dev, "Tx-ing packet: Size: 0x%08x\n", skb->len);
+	pos += qcafrm_create_footer(pos);
 
 	netif_stop_queue(qca->net_dev);
 
 	set_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
-	written = qca->tty->ops->write(qca->tty, skb->data, skb->len);
+	written = qca->tty->ops->write(qca->tty, qca->xbuff, pos - qca->xbuff);
+	qca->xleft = (pos - qca->xbuff) - written;
+	qca->xhead = qca->xbuff + written;
 	qca->stats.tx_bytes += written;
 	netdev_dbg(qca->net_dev, "xmit wrote %d bytes\n", written);
-	skb_pull(skb, written);
+	spin_unlock(&qca->lock);
 
-	qca->tx_skb = skb;
 	dev->trans_start = jiffies;
-
+out:
+	kfree_skb(skb);
 	return NETDEV_TX_OK;
 }
 
@@ -289,11 +302,6 @@ qcauart_netdev_tx_timeout(struct net_device *dev)
 	qca->stats.tx_dropped++;
 
 	clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
-
-	if (qca->tx_skb) {
-		dev_kfree_skb(qca->tx_skb);
-		qca->tx_skb = NULL;
-	}
 }
 
 static int
@@ -375,6 +383,8 @@ static int __init qca_uart_mod_init(void)
 		return -ENOMEM;
 	}
 	qca->net_dev = qcauart_dev;
+	spin_lock_init(&qca->lock);
+	INIT_WORK(&qca->tx_work, qcauart_transmit);
 
 	eth_hw_addr_random(qca->net_dev);
 	pr_info("qca_uart: Using random MAC address: %pM\n",
@@ -398,8 +408,10 @@ static void __exit qca_uart_mod_exit(void)
 	int ret;
 
 	qca = netdev_priv(qcauart_dev);
+	spin_lock_bh(&qca->lock);
 	if (qca->tty)
 		tty_hangup(qca->tty);
+	spin_unlock_bh(&qca->lock);
 
 	unregister_netdev(qcauart_dev);
 
