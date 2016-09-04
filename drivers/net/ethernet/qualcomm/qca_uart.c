@@ -63,11 +63,6 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 {
 	struct qcauart *qca = tty->disc_data;
 
-	if (!qca) {
-		pr_err("%s: qca priv is null\n", __func__);
-		return;
-	}
-
 	if (!qca->rx_skb) {
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
 					       VLAN_ETH_HLEN);
@@ -125,13 +120,8 @@ qca_tty_wakeup(struct tty_struct *tty)
 	struct qcauart *qca = tty->disc_data;
 	int written;
 
-	if (!qca) {
-		pr_err("%s: qca priv is null\n", __func__);
-		return;
-	}
-
 	if (!qca->tx_skb) {
-		netdev_err(qca->net_dev, "%s: tx_skb is null\n", __func__);
+		netdev_dbg(qca->net_dev, "%s: tx_skb is null\n", __func__);
 		return;
 	}
 
@@ -272,14 +262,14 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	ptmp = skb_put(skb, QCAFRM_FOOTER_LEN);
 	qcafrm_create_footer(ptmp);
 
-	netdev_dbg(qca->net_dev, "Tx-ing packet: Size: 0x%08x\n",
-		   skb->len);
+	netdev_dbg(qca->net_dev, "Tx-ing packet: Size: 0x%08x\n", skb->len);
 
 	netif_stop_queue(qca->net_dev);
 
 	set_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
 	written = qca->tty->ops->write(qca->tty, skb->data, skb->len);
 	qca->stats.tx_bytes += written;
+	netdev_dbg(qca->net_dev, "xmit wrote %d bytes\n", written);
 	skb_pull(skb, written);
 
 	qca->tx_skb = skb;
