@@ -71,6 +71,7 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 	struct net_device_stats *n_stats = &qca->net_dev->stats;
 
 	if (!qca->rx_skb) {
+		netdev_dbg(qca->net_dev, "alloc rx_skb\n");
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
 					       VLAN_ETH_HLEN);
 		if (!qca->rx_skb) {
