@@ -48,7 +48,6 @@
 
 struct qcauart {
 	struct net_device *net_dev;
-	struct net_device_stats stats;
 	spinlock_t lock;
 	struct work_struct tx_work;		/* Flushes transmit buffer   */
 
@@ -69,13 +68,14 @@ void
 qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int count)
 {
 	struct qcauart *qca = tty->disc_data;
+	struct net_device_stats *n_stats = &qca->net_dev->stats;
 
 	if (!qca->rx_skb) {
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
 					       VLAN_ETH_HLEN);
 		if (!qca->rx_skb) {
-			qca->stats.rx_errors++;
-			qca->stats.rx_dropped++;
+			n_stats->rx_errors++;
+			n_stats->rx_dropped++;
 			return;
 		}
 	}
@@ -93,18 +93,19 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 			break;
 		case QCAFRM_NOTAIL:
 			netdev_dbg(qca->net_dev, "no RX tail\n");
-			qca->stats.rx_errors++;
-			qca->stats.rx_dropped++;
+			n_stats->rx_errors++;
+			n_stats->rx_dropped++;
 			break;
 		case QCAFRM_INVLEN:
 			netdev_dbg(qca->net_dev, "invalid RX length\n");
-			qca->stats.rx_errors++;
-			qca->stats.rx_dropped++;
+			n_stats->rx_errors++;
+			n_stats->rx_dropped++;
 			break;
 		default:
+			netdev_dbg(qca->net_dev, "recv read %d bytes\n", retcode);
 			qca->rx_skb->dev = qca->net_dev;
-			qca->stats.rx_packets++;
-			qca->stats.rx_bytes += retcode;
+			n_stats->rx_packets++;
+			n_stats->rx_bytes += retcode;
 			skb_put(qca->rx_skb, retcode);
 			qca->rx_skb->protocol = eth_type_trans(
 						qca->rx_skb, qca->rx_skb->dev);
@@ -114,7 +115,8 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 						       qca->net_dev->mtu +
 						       VLAN_ETH_HLEN);
 			if (!qca->rx_skb) {
-				qca->stats.rx_errors++;
+				netdev_dbg(qca->net_dev, "out of RX resources\n");
+				n_stats->rx_errors++;
 				break;
 			}
 		}
@@ -125,6 +127,7 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 static void qcauart_transmit(struct work_struct *work)
 {
 	struct qcauart *qca = container_of(work, struct qcauart, tx_work);
+	struct net_device_stats *n_stats = &qca->net_dev->stats;
 	int written;
 
 	spin_lock_bh(&qca->lock);
@@ -137,7 +140,7 @@ static void qcauart_transmit(struct work_struct *work)
 	if (qca->xleft <= 0)  {
 		/* Now serial buffer is almost free & we can start
 		 * transmission of another packet */
-		qca->stats.tx_packets++;
+		n_stats->tx_packets++;
 		clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
 		spin_unlock_bh(&qca->lock);
 		netif_wake_queue(qca->net_dev);
@@ -243,6 +246,7 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	u8 *pos;
 	struct qcauart *qca = netdev_priv(dev);
+	struct net_device_stats *n_stats = &dev->stats;
 	u8 pad_len = 0;
 	int written;
 
@@ -281,7 +285,7 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	written = qca->tty->ops->write(qca->tty, qca->xbuff, pos - qca->xbuff);
 	qca->xleft = (pos - qca->xbuff) - written;
 	qca->xhead = qca->xbuff + written;
-	qca->stats.tx_bytes += written;
+	n_stats->tx_bytes += written;
 	netdev_dbg(qca->net_dev, "xmit wrote %d bytes\n", written);
 	spin_unlock(&qca->lock);
 
@@ -298,8 +302,8 @@ qcauart_netdev_tx_timeout(struct net_device *dev)
 
 	netdev_info(qca->net_dev, "Transmit timeout at %ld, latency %ld\n",
 		    jiffies, jiffies - dev->trans_start);
-	qca->stats.tx_errors++;
-	qca->stats.tx_dropped++;
+	dev->stats.tx_errors++;
+	dev->stats.tx_dropped++;
 
 	clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
 }
