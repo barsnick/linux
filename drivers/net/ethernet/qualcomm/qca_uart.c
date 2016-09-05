@@ -71,7 +71,6 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 	struct net_device_stats *n_stats = &qca->net_dev->stats;
 
 	if (!qca->rx_skb) {
-		netdev_dbg(qca->net_dev, "alloc rx_skb\n");
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
 					       VLAN_ETH_HLEN);
 		if (!qca->rx_skb) {
@@ -81,11 +80,18 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 		}
 	}
 
-	while (count-- && qca->rx_skb) {
-		s32 retcode = qcafrm_fsm_decode(&qca->frm_handle,
-						qca->rx_skb->data,
-						skb_tailroom(qca->rx_skb),
-						*cp);
+	while (count--) {
+		s32 retcode;
+
+		if (fp && *fp++) {
+			cp++;
+			continue;
+		}
+
+		retcode = qcafrm_fsm_decode(&qca->frm_handle,
+					    qca->rx_skb->data,
+					    skb_tailroom(qca->rx_skb),
+					    *cp);
 
 		cp++;
 		switch (retcode) {
@@ -103,7 +109,6 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 			n_stats->rx_dropped++;
 			break;
 		default:
-			netdev_dbg(qca->net_dev, "recv read %d bytes\n", retcode);
 			qca->rx_skb->dev = qca->net_dev;
 			n_stats->rx_packets++;
 			n_stats->rx_bytes += retcode;
@@ -219,7 +224,7 @@ qcauart_netdev_open(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
-	qcafrm_fsm_init(&qca->frm_handle);
+	qcafrm_fsm_init_uart(&qca->frm_handle);
 	netif_start_queue(qca->net_dev);
 
 	return 0;
