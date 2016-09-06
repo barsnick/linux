@@ -70,6 +70,9 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 	struct qcauart *qca = tty->disc_data;
 	struct net_device_stats *n_stats = &qca->net_dev->stats;
 
+	netdev_dbg(qca->net_dev, "recv read %d bytes, state %d, char %02x\n",
+				 count, qca->frm_handle.state, *cp);
+
 	if (!qca->rx_skb) {
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
 					       VLAN_ETH_HLEN);
@@ -84,6 +87,7 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 		s32 retcode;
 
 		if (fp && *fp++) {
+			n_stats->rx_errors++;
 			cp++;
 			continue;
 		}
