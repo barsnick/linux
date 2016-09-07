@@ -119,12 +119,14 @@ u16 qcafrm_create_footer(u8 *buf);
 
 static inline void qcafrm_fsm_init_spi(struct qcafrm_handle *handle)
 {
-	handle->init = handle->state = QCAFRM_HW_LEN0;
+	handle->init = QCAFRM_HW_LEN0;
+	handle->state = handle->init;
 }
 
 static inline void qcafrm_fsm_init_uart(struct qcafrm_handle *handle)
 {
-	handle->init = handle->state = QCAFRM_WAIT_AA1;
+	handle->init = QCAFRM_WAIT_AA1;
+	handle->state = handle->init;
 }
 
 /*   Gather received bytes and try to extract a full Ethernet frame

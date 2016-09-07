@@ -21,6 +21,7 @@
  *   by an atheros frame while transmitted over a serial channel;
  */
 
+#include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 
@@ -170,6 +171,18 @@ qcacmn_netdev_change_mtu(struct net_device *dev, int new_mtu)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(qcacmn_netdev_change_mtu);
+
+static int __init qcacmn_mod_init(void)
+{
+	return 0;
+}
+
+static void __exit qcacmn_mod_exit(void)
+{
+}
+
+module_init(qcacmn_mod_init);
+module_exit(qcacmn_mod_exit);
 
 MODULE_DESCRIPTION("Qualcomm Atheros Common");
 MODULE_AUTHOR("Qualcomm Atheros Communications");

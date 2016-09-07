@@ -22,8 +22,6 @@
  *   serial converter;
  */
 
-#define DEBUG
-
 #include <linux/errno.h>
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
@@ -43,7 +41,6 @@
 
 #define QCAUART_DRV_VERSION "0.0.6"
 #define QCAUART_DRV_NAME "qcauart"
-#define QCAUART_MTU QCAFRM_ETHMAXMTU
 #define QCAUART_TX_TIMEOUT (1 * HZ)
 
 struct qcauart {
@@ -53,7 +50,7 @@ struct qcauart {
 
 	struct tty_struct *tty;
 
-	unsigned char xbuff[QCAUART_MTU];	/* transmitter buffer        */
+	unsigned char xbuff[QCAFRM_ETHMAXMTU];	/* transmitter buffer        */
 	unsigned char *xhead;			/* pointer to next XMIT byte */
 	int xleft;				/* bytes left in XMIT queue  */
 
@@ -65,13 +62,12 @@ struct qcauart {
 static struct net_device *qcauart_dev;
 
 void
-qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int count)
+qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp,
+		int count)
 {
 	struct qcauart *qca = tty->disc_data;
 	struct net_device_stats *n_stats = &qca->net_dev->stats;
-
-	netdev_dbg(qca->net_dev, "recv read %d bytes, state %d, char %02x\n",
-				 count, qca->frm_handle.state, *cp);
+	int dropped = 0;
 
 	if (!qca->rx_skb) {
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
@@ -89,6 +85,7 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 		if (fp && *fp++) {
 			n_stats->rx_errors++;
 			cp++;
+			dropped++;
 			continue;
 		}
 
@@ -103,12 +100,12 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 		case QCAFRM_NOHEAD:
 			break;
 		case QCAFRM_NOTAIL:
-			netdev_dbg(qca->net_dev, "no RX tail\n");
+			netdev_dbg(qca->net_dev, "recv: no RX tail\n");
 			n_stats->rx_errors++;
 			n_stats->rx_dropped++;
 			break;
 		case QCAFRM_INVLEN:
-			netdev_dbg(qca->net_dev, "invalid RX length\n");
+			netdev_dbg(qca->net_dev, "recv: invalid RX length\n");
 			n_stats->rx_errors++;
 			n_stats->rx_dropped++;
 			break;
@@ -125,12 +122,16 @@ qca_tty_receive(struct tty_struct *tty, const unsigned char *cp, char *fp, int c
 						       qca->net_dev->mtu +
 						       VLAN_ETH_HLEN);
 			if (!qca->rx_skb) {
-				netdev_dbg(qca->net_dev, "out of RX resources\n");
+				netdev_dbg(qca->net_dev, "recv: out of RX resources\n");
 				n_stats->rx_errors++;
 				break;
 			}
 		}
 	}
+
+	if (dropped)
+		dev_dbg_ratelimited(&qca->net_dev->dev, "recv: invalid %d bytes\n",
+				    dropped);
 }
 
 /* Write out any remaining transmit buffer. Scheduled when tty is writable */
@@ -149,7 +150,8 @@ static void qcauart_transmit(struct work_struct *work)
 
 	if (qca->xleft <= 0)  {
 		/* Now serial buffer is almost free & we can start
-		 * transmission of another packet */
+		 * transmission of another packet
+		 */
 		n_stats->tx_packets++;
 		clear_bit(TTY_DO_WRITE_WAKEUP, &qca->tty->flags);
 		spin_unlock_bh(&qca->lock);
@@ -163,8 +165,7 @@ static void qcauart_transmit(struct work_struct *work)
 	spin_unlock_bh(&qca->lock);
 }
 
-/*
- * Called by the driver when there's room for more data.
+/* Called by the driver when there's room for more data.
  * Schedule the transmit.
  */
 static void qca_tty_wakeup(struct tty_struct *tty)
@@ -191,7 +192,7 @@ qca_tty_open(struct tty_struct *tty)
 	qca = netdev_priv(qcauart_dev);
 	qca->tty = tty;
 	tty->disc_data = qca;
-	tty->receive_room = 65536;
+	tty->receive_room = 4096;
 	netif_carrier_on(qca->net_dev);
 
 	return 0;
@@ -254,9 +255,9 @@ qcauart_netdev_close(struct net_device *dev)
 netdev_tx_t
 qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 {
-	u8 *pos;
 	struct qcauart *qca = netdev_priv(dev);
 	struct net_device_stats *n_stats = &dev->stats;
+	u8 *pos;
 	u8 pad_len = 0;
 	int written;
 
@@ -267,7 +268,7 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 		netdev_warn(qca->net_dev, "xmit: iface is down\n");
 		goto out;
 	}
-	if (qca->tty == NULL) {
+	if (!qca->tty) {
 		spin_unlock(&qca->lock);
 		goto out;
 	}
@@ -296,7 +297,6 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 	qca->xleft = (pos - qca->xbuff) - written;
 	qca->xhead = qca->xbuff + written;
 	n_stats->tx_bytes += written;
-	netdev_dbg(qca->net_dev, "xmit wrote %d bytes\n", written);
 	spin_unlock(&qca->lock);
 
 	dev->trans_start = jiffies;
@@ -324,7 +324,7 @@ qcauart_netdev_init(struct net_device *dev)
 	struct qcauart *qca = netdev_priv(dev);
 
 	/* Finish setting up the device info. */
-	dev->mtu = QCAUART_MTU;
+	dev->mtu = QCAFRM_ETHMAXMTU;
 	dev->type = ARPHRD_ETHER;
 
 	qca->rx_skb = netdev_alloc_skb(qca->net_dev,
@@ -359,7 +359,7 @@ static const struct net_device_ops qcauart_netdev_ops = {
 static void
 qcauart_netdev_setup(struct net_device *dev)
 {
-	struct qcauart *qca = NULL;
+	struct qcauart *qca;
 
 	dev->netdev_ops = &qcauart_netdev_ops;
 	dev->watchdog_timeo = QCAUART_TX_TIMEOUT;
@@ -382,8 +382,6 @@ static int __init qca_uart_mod_init(void)
 		return ret;
 	}
 
-	pr_info("qca_uart: ver=%s\n", QCAUART_DRV_VERSION);
-
 	qcauart_dev = alloc_etherdev(sizeof(struct qcauart));
 	if (!qcauart_dev)
 		return -ENOMEM;
@@ -401,8 +399,8 @@ static int __init qca_uart_mod_init(void)
 	INIT_WORK(&qca->tx_work, qcauart_transmit);
 
 	eth_hw_addr_random(qca->net_dev);
-	pr_info("qca_uart: Using random MAC address: %pM\n",
-		qca->net_dev->dev_addr);
+	pr_info("qca_uart: ver=%s, using random MAC address: %pM\n",
+		QCAUART_DRV_VERSION, qca->net_dev->dev_addr);
 
 	netif_carrier_off(qca->net_dev);
 
