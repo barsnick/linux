@@ -370,7 +370,7 @@ qcauart_netdev_setup(struct net_device *dev)
 	memset(qca, 0, sizeof(struct qcauart));
 }
 
-static int __init qca_uart_mod_init(void)
+static int __init qcauart_mod_init(void)
 {
 	struct qcauart *qca;
 	int ret;
@@ -414,7 +414,7 @@ static int __init qca_uart_mod_init(void)
 	return 0;
 }
 
-static void __exit qca_uart_mod_exit(void)
+static void __exit qcauart_mod_exit(void)
 {
 	struct qcauart *qca;
 	int ret;
@@ -436,8 +436,8 @@ static void __exit qca_uart_mod_exit(void)
 		       ret);
 }
 
-module_init(qca_uart_mod_init);
-module_exit(qca_uart_mod_exit);
+module_init(qcauart_mod_init);
+module_exit(qcauart_mod_exit);
 
 MODULE_DESCRIPTION("Qualcomm Atheros UART Driver");
 MODULE_AUTHOR("Qualcomm Atheros Communications");

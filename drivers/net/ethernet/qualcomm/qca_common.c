@@ -172,18 +172,6 @@ qcacmn_netdev_change_mtu(struct net_device *dev, int new_mtu)
 }
 EXPORT_SYMBOL_GPL(qcacmn_netdev_change_mtu);
 
-static int __init qcacmn_mod_init(void)
-{
-	return 0;
-}
-
-static void __exit qcacmn_mod_exit(void)
-{
-}
-
-module_init(qcacmn_mod_init);
-module_exit(qcacmn_mod_exit);
-
 MODULE_DESCRIPTION("Qualcomm Atheros Common");
 MODULE_AUTHOR("Qualcomm Atheros Communications");
 MODULE_AUTHOR("Stefan Wahren <stefan.wahren@i2se.com>");
