@@ -1,0 +1,100 @@
+/*
+ * Copyright (C) 2016 I2SE GmbH <info@i2se.com>
+ *
+ * The code contained herein is licensed under the GNU General Public
+ * License. You may obtain a copy of the GNU General Public License
+ * Version 2 or later at the following locations:
+ *
+ * http://www.opensource.org/licenses/gpl-license.html
+ * http://www.gnu.org/copyleft/gpl.html
+ */
+
+/dts-v1/;
+#include <dt-bindings/interrupt-controller/irq.h>
+#include "imx28-duckbill-2-common.dtsi"
+
+/ {
+	model = "I2SE open-plc-util-test";
+	compatible = "i2se,duckbill", "fsl,imx28";
+
+	aliases {
+		ethernet1 = &qca7000;
+	};
+
+	apb@80000000 {
+		apbh@80000000 {
+			ssp2: ssp@80014000 {
+				compatible = "fsl,imx28-spi";
+				pinctrl-names = "default";
+				pinctrl-0 = <&spi2_pins_a>;
+				status = "okay";
+
+				qca7000: ethernet@0 {
+					compatible = "qca,qca7000";
+					pinctrl-names = "default";
+					pinctrl-0 = <&qca7000_int>;
+					reg = <0>;
+					interrupt-parent = <&gpio2>;
+					interrupts = <21 IRQ_TYPE_EDGE_RISING>;
+					spi-cpha;
+					spi-cpol;
+					spi-max-frequency = <8000000>;
+				};
+			};
+
+			pinctrl@80018000 {
+				qca7000_int: qca7000-int@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						MX28_PAD_SSP2_SS2__GPIO_2_21
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_DISABLE>;
+				};
+
+				i2c_int: i2c-int@0 {
+					reg = <0>;
+					fsl,pinmux-ids = <
+						MX28_PAD_SSP2_SS1__GPIO_2_20
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_DISABLE>;
+				};
+			};
+		};
+
+		apbx@80040000 {
+			auart0: serial@8006a000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&auart0_pins_a>;
+				status = "okay";
+			};
+
+			i2c0: i2c@80058000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&i2c0_pins_a>;
+				clock-frequency = <100000>;
+				status = "okay";
+
+				/* JP3_1 + JP4_1 must be closed */
+				ina219: ina219@45 {
+					compatible = "ti,ina219";
+					reg = <0x45>;
+					shunt-resistor = <330000>;
+				};
+
+				/* all JP1 must be open */
+				pca9555: pca9555@27 {
+					compatible = "nxp,pca9555";
+					reg = <0x27>;
+					gpio-controller;
+					#gpio-cells = <2>;
+					interrupt-parent = <&gpio2>;
+					interrupts = <20 IRQ_TYPE_LEVEL_LOW>;
+				};
+			};
+		};
+	};
+};
