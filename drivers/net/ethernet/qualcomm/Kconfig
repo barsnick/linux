@@ -30,4 +30,14 @@ config QCA7000_SPI
 	  To compile this driver as a module, choose M here. The module
 	  will be called qcaspi.
 
+config QCA7000_UART
+	tristate "Qualcomm Atheros QCA7000 UART support"
+	select QCA7000
+	depends on TTY
+	---help---
+	  This UART protocol driver supports the Qualcomm Atheros QCA7000.
+
+	  To compile this driver as a module, choose M here. The module
+	  will be called qcauart.
+
 endif # NET_VENDOR_QUALCOMM
