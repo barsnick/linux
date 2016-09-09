@@ -43,8 +43,8 @@
 #include <linux/types.h>
 
 #include "qca_7k.h"
+#include "qca_common.h"
 #include "qca_debug.h"
-#include "qca_framing.h"
 #include "qca_spi.h"
 
 #define MAX_DMA_BURST_LEN 5000
@@ -190,6 +190,30 @@ qcaspi_read_legacy(struct qcaspi *qca, u8 *dst, u32 len)
 	}
 
 	return len;
+}
+
+int
+qcaspi_tx_cmd(struct qcaspi *qca, u16 cmd)
+{
+	__be16 tx_data;
+	struct spi_message *msg = &qca->spi_msg1;
+	struct spi_transfer *transfer = &qca->spi_xfer1;
+	int ret;
+
+	tx_data = cpu_to_be16(cmd);
+	transfer->len = sizeof(tx_data);
+	transfer->tx_buf = &tx_data;
+	transfer->rx_buf = NULL;
+
+	ret = spi_sync(qca->spi_dev, msg);
+
+	if (!ret)
+		ret = msg->status;
+
+	if (ret)
+		qcaspi_spi_error(qca);
+
+	return ret;
 }
 
 static int
@@ -614,7 +638,7 @@ qcaspi_netdev_open(struct net_device *dev)
 	qca->intr_req = 1;
 	qca->intr_svc = 0;
 	qca->sync = QCASPI_SYNC_UNKNOWN;
-	qcafrm_fsm_init(&qca->frm_handle);
+	qcafrm_fsm_init_spi(&qca->frm_handle);
 
 	qca->spi_thread = kthread_run((void *)qcaspi_spi_thread,
 				      qca, "%s", dev->name);
@@ -780,24 +804,13 @@ qcaspi_netdev_uninit(struct net_device *dev)
 		dev_kfree_skb(qca->rx_skb);
 }
 
-static int
-qcaspi_netdev_change_mtu(struct net_device *dev, int new_mtu)
-{
-	if ((new_mtu < QCAFRM_ETHMINMTU) || (new_mtu > QCAFRM_ETHMAXMTU))
-		return -EINVAL;
-
-	dev->mtu = new_mtu;
-
-	return 0;
-}
-
 static const struct net_device_ops qcaspi_netdev_ops = {
 	.ndo_init = qcaspi_netdev_init,
 	.ndo_uninit = qcaspi_netdev_uninit,
 	.ndo_open = qcaspi_netdev_open,
 	.ndo_stop = qcaspi_netdev_close,
 	.ndo_start_xmit = qcaspi_netdev_xmit,
-	.ndo_change_mtu = qcaspi_netdev_change_mtu,
+	.ndo_change_mtu = qcacmn_netdev_change_mtu,
 	.ndo_set_mac_address = eth_mac_addr,
 	.ndo_tx_timeout = qcaspi_netdev_tx_timeout,
 	.ndo_validate_addr = eth_validate_addr,

@@ -21,11 +21,12 @@
  *   frame while transmitted over a serial channel.
  */
 
-#ifndef _QCA_FRAMING_H
-#define _QCA_FRAMING_H
+#ifndef _QCA_COMMON_H
+#define _QCA_COMMON_H
 
 #include <linux/if_ether.h>
 #include <linux/if_vlan.h>
+#include <linux/netdevice.h>
 #include <linux/types.h>
 
 /* Frame is currently being received */
@@ -61,6 +62,7 @@
 #define QCAFRM_ERR_BASE -1000
 
 enum qcafrm_state {
+	/* HW length is only available on SPI */
 	QCAFRM_HW_LEN0 = 0x8000,
 	QCAFRM_HW_LEN1 = QCAFRM_HW_LEN0 - 1,
 	QCAFRM_HW_LEN2 = QCAFRM_HW_LEN1 - 1,
@@ -99,8 +101,10 @@ enum qcafrm_state {
 /*   Structure to maintain the frame decoding during reception. */
 
 struct qcafrm_handle {
-	/*  Current decoding state */
+	/* Current decoding state */
 	enum qcafrm_state state;
+	/* Initial state depends on connection type */
+	enum qcafrm_state init;
 
 	/* Offset in buffer (borrowed for length too) */
 	s16 offset;
@@ -109,13 +113,14 @@ struct qcafrm_handle {
 	u16 len;
 };
 
-u16 qcafrm_create_header(u8 *buf, u16 len);
+u16 qcafrm_create_header(u8 *buf, u16 length);
 
 u16 qcafrm_create_footer(u8 *buf);
 
-static inline void qcafrm_fsm_init(struct qcafrm_handle *handle)
+static inline void qcafrm_fsm_init_spi(struct qcafrm_handle *handle)
 {
-	handle->state = QCAFRM_HW_LEN0;
+	handle->init = QCAFRM_HW_LEN0;
+	handle->state = handle->init;
 }
 
 /*   Gather received bytes and try to extract a full Ethernet frame
@@ -131,4 +136,6 @@ static inline void qcafrm_fsm_init(struct qcafrm_handle *handle)
 
 s32 qcafrm_fsm_decode(struct qcafrm_handle *handle, u8 *buf, u16 buf_len, u8 recv_byte);
 
-#endif /* _QCA_FRAMING_H */
+int qcacmn_netdev_change_mtu(struct net_device *dev, int new_mtu);
+
+#endif /* _QCA_COMMON_H */
