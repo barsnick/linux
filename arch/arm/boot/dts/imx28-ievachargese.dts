@@ -35,6 +35,7 @@
 				bus-width = <8>;
 				non-removable;
 				vmmc-supply = <&reg_3p3v>;
+				mmc-pwrseq = <&emmc_pwrseq>;
 				status = "okay";
 			};
 
@@ -77,8 +78,6 @@
 						MX28_PAD_SSP1_CMD__GPIO_2_13
 						MX28_PAD_SSP1_DATA0__GPIO_2_14
 						MX28_PAD_SSP1_DATA3__GPIO_2_15
-						/* pullup */
-						MX28_PAD_SSP2_SS1__GPIO_2_20 /* EMMC_RESET */
 					>;
 					fsl,drive-strength = <MXS_DRIVE_4mA>;
 					fsl,voltage = <MXS_VOLTAGE_HIGH>;
@@ -159,6 +158,16 @@
 					fsl,voltage = <MXS_VOLTAGE_HIGH>;
 					fsl,pull-up = <MXS_PULL_DISABLE>;
 				};
+
+				emmc_reset: emmc_reset {
+					fsl,pinmux-ids = <
+						/* pullup */
+						MX28_PAD_SSP2_SS1__GPIO_2_20 /* EMMC_RESET */
+					>;
+					fsl,drive-strength = <MXS_DRIVE_4mA>;
+					fsl,voltage = <MXS_VOLTAGE_HIGH>;
+					fsl,pull-up = <MXS_PULL_DISABLE>;
+				};
 			};
 
 			can1: can@80034000 {
@@ -225,6 +234,13 @@
 			phy-reset-duration = <25>;
 			status = "okay";
 		};
+	};
+
+	emmc_pwrseq: emmc-pwrseq {
+		compatible = "mmc-pwrseq-emmc";
+		pinctrl-0 = <&emmc_reset>;
+		pinctrl-names = "default";
+		reset-gpios = <&gpio2 20 GPIO_ACTIVE_LOW>;
 	};
 
 	regulators {
