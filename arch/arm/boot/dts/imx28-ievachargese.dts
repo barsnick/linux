@@ -33,8 +33,9 @@
 				pinctrl-0 = <&mmc0_8bit_pins_a
 					&mmc0_cd_cfg &mmc0_sck_cfg>;
 				bus-width = <8>;
-				status = "okay";
 				non-removable;
+				vmmc-supply = <&reg_3p3v>;
+				status = "okay";
 			};
 
 			ssp2: ssp@80014000 {
