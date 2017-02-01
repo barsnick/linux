@@ -34,6 +34,7 @@
 					&mmc0_cd_cfg &mmc0_sck_cfg>;
 				bus-width = <8>;
 				non-removable;
+				no-sdio;
 				vmmc-supply = <&reg_3p3v>;
 				mmc-pwrseq = <&emmc_pwrseq>;
 				status = "okay";
