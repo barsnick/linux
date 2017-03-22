@@ -337,6 +337,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 		goto free;
 	}
 	qca->net_dev = qcauart_dev;
+	qca->serdev = serdev;
 
 	spin_lock_init(&qca->lock);
 	INIT_WORK(&qca->tx_work, qcauart_transmit);
