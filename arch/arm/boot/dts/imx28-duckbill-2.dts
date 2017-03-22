@@ -108,6 +108,10 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&auart0_2pins_a>;
 				status = "okay";
+
+				qca7000: ethernet {
+					compatible = "qca,qca7000-uart";
+				};
 			};
 
 			duart: serial@80074000 {
