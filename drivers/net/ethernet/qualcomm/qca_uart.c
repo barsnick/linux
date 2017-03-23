@@ -150,8 +150,10 @@ static void qcauart_transmit(struct work_struct *work)
 	}
 
 	written = serdev_device_write_buf(qca->serdev, qca->xhead, qca->xleft);
-	qca->xleft -= written;
-	qca->xhead += written;
+	if (written > 0) {
+		qca->xleft -= written;
+		qca->xhead += written;
+	}
 	spin_unlock_bh(&qca->lock);
 }
 
@@ -232,9 +234,11 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	written = serdev_device_write_buf(qca->serdev, qca->xbuff,
 					  pos - qca->xbuff);
-	qca->xleft = (pos - qca->xbuff) - written;
-	qca->xhead = qca->xbuff + written;
-	n_stats->tx_bytes += written;
+	if (written > 0) {
+		qca->xleft = (pos - qca->xbuff) - written;
+		qca->xhead = qca->xbuff + written;
+		n_stats->tx_bytes += written;
+	}
 	spin_unlock(&qca->lock);
 
 	netif_trans_update(dev);
