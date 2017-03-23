@@ -67,6 +67,7 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 {
 	struct qcauart *qca = serdev_device_get_drvdata(serdev);
 	struct net_device_stats *n_stats = &qca->net_dev->stats;
+	size_t i;
 
 	if (!qca->rx_skb) {
 		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
@@ -78,15 +79,14 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 		}
 	}
 
-	while (count--) {
+	for (i = 0; i < count; i++) {
 		s32 retcode;
 
 		retcode = qcafrm_fsm_decode(&qca->frm_handle,
 					    qca->rx_skb->data,
 					    skb_tailroom(qca->rx_skb),
-					    *data);
+					    data[i]);
 
-		data++;
 		switch (retcode) {
 		case QCAFRM_GATHER:
 		case QCAFRM_NOHEAD:
@@ -121,7 +121,7 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 		}
 	}
 
-	return count;
+	return i;
 }
 
 /* Write out any remaining transmit buffer. Scheduled when tty is writable */
