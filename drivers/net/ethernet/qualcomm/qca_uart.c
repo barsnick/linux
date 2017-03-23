@@ -326,6 +326,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 	struct net_device *qcauart_dev = alloc_etherdev(sizeof(struct qcauart));
 	struct qcauart *qca;
 	const char *mac;
+	u32 speed = 115200;
 	int ret;
 
 	if (!qcauart_dev)
@@ -344,6 +345,8 @@ static int qca_uart_probe(struct serdev_device *serdev)
 
 	spin_lock_init(&qca->lock);
 	INIT_WORK(&qca->tx_work, qcauart_transmit);
+
+	of_property_read_u32(serdev->dev.of_node, "current-speed", &speed);
 
 	mac = of_get_mac_address(serdev->dev.of_node);
 
@@ -367,7 +370,9 @@ static int qca_uart_probe(struct serdev_device *serdev)
 		goto free;
 	}
 
-	serdev_device_set_baudrate(serdev, 115200);
+	speed = serdev_device_set_baudrate(serdev, speed);
+	dev_info(&serdev->dev, "Using baudrate: %u\n", speed);
+
 	serdev_device_set_flow_control(serdev, false);
 
 	ret = register_netdev(qcauart_dev);
