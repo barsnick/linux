@@ -39,6 +39,11 @@
 #include <linux/skbuff.h>
 #include <linux/types.h>
 
+#include <linux/tty.h>
+#include <linux/serial_core.h>
+#include <linux/debugfs.h>
+#include <linux/seq_file.h>
+
 #include "qca_common.h"
 
 #define QCAUART_DRV_VERSION "0.1.0"
@@ -59,6 +64,10 @@ struct qcauart {
 	struct qcafrm_handle frm_handle;
 
 	struct sk_buff *rx_skb;
+
+#ifdef CONFIG_DEBUG_FS
+	struct dentry *device_root;
+#endif
 };
 
 static int
@@ -284,6 +293,112 @@ qcauart_netdev_uninit(struct net_device *dev)
 		dev_kfree_skb(qca->rx_skb);
 }
 
+#ifdef CONFIG_DEBUG_FS
+
+static int
+qcauart_info_show(struct seq_file *s, void *what)
+{
+	struct qcauart *qca = s->private;
+	struct serdev_controller *ctrl = qca->serdev->ctrl;
+	struct serport *serport = serdev_controller_get_drvdata(ctrl);
+	struct uart_state *state = serport->tty->driver_data;
+	struct uart_port *port = state->uart_port;
+
+	seq_puts(s, "Baudrate           : 115200\n");
+
+	seq_printf(s, "Data bits          : %d\n",
+		   serdev_device_get_data_bits(qca->serdev));
+
+	seq_puts(s, "Parity             : ");
+
+	switch (serdev_device_get_parity(qca->serdev)) {
+	case SERDEV_PARITY_NONE:
+		seq_puts(s, "None");
+		break;
+	case SERDEV_PARITY_ODD:
+		seq_puts(s, "Odd");
+		break;
+	case SERDEV_PARITY_EVEN:
+		seq_puts(s, "Even");
+		break;
+	default:
+		seq_puts(s, "Unknown");
+		break;
+	}
+
+	seq_puts(s, "\n");
+
+	seq_printf(s, "Stop bits          : %d\n",
+		   serdev_device_get_stop_bits(qca->serdev));
+
+	seq_printf(s, "Received bytes     : %u\n",
+		   port->icount.rx);
+
+	seq_printf(s, "Transmitted bytes  : %u\n",
+		   port->icount.tx);
+
+	seq_printf(s, "Framing errors     : %u\n",
+		   port->icount.frame);
+
+	seq_printf(s, "Overrun errors     : %u\n",
+		   port->icount.overrun);
+
+	seq_printf(s, "Parity errors      : %u\n",
+		   port->icount.parity);
+
+	return 0;
+}
+
+static int
+qcauart_info_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, qcauart_info_show, inode->i_private);
+}
+
+static const struct file_operations qcauart_info_ops = {
+	.open = qcauart_info_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = single_release,
+};
+
+void
+qcauart_init_device_debugfs(struct qcauart *qca)
+{
+	struct dentry *device_root;
+
+	device_root = debugfs_create_dir(dev_name(&qca->net_dev->dev), NULL);
+	qca->device_root = device_root;
+
+	if (IS_ERR(device_root) || !device_root) {
+		pr_warn("failed to create debugfs directory for %s\n",
+			dev_name(&qca->net_dev->dev));
+		return;
+	}
+	debugfs_create_file("info", S_IFREG | S_IRUGO, device_root, qca,
+			    &qcauart_info_ops);
+}
+
+void
+qcauart_remove_device_debugfs(struct qcauart *qca)
+{
+	debugfs_remove_recursive(qca->device_root);
+}
+
+#else /* CONFIG_DEBUG_FS */
+
+void
+qcauart_init_device_debugfs(struct qcaspi *qca)
+{
+}
+
+void
+qcauart_remove_device_debugfs(struct qcaspi *qca)
+{
+}
+
+#endif
+
 static const struct net_device_ops qcauart_netdev_ops = {
 	.ndo_init = qcauart_netdev_init,
 	.ndo_uninit = qcauart_netdev_uninit,
@@ -402,6 +517,8 @@ static int qca_uart_probe(struct serdev_device *serdev)
 		goto free;
 	}
 
+	qcauart_init_device_debugfs(qca);
+
 	return 0;
 
 free:
@@ -412,6 +529,8 @@ free:
 static void qca_uart_remove(struct serdev_device *serdev)
 {
 	struct qcauart *qca = serdev_device_get_drvdata(serdev);
+
+	qcauart_remove_device_debugfs(qca);
 
 	/* Flush any pending characters in the driver. */
 	serdev_device_close(serdev);

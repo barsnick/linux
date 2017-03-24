@@ -23,6 +23,14 @@
 struct serdev_controller;
 struct serdev_device;
 
+struct serport {
+	struct tty_port *port;
+	struct tty_struct *tty;
+	struct tty_driver *tty_drv;
+	int tty_idx;
+	unsigned long flags;
+};
+
 /*
  * serdev device structures
  */

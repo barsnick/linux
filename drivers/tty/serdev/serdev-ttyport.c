@@ -17,14 +17,6 @@
 
 #define SERPORT_ACTIVE		1
 
-struct serport {
-	struct tty_port *port;
-	struct tty_struct *tty;
-	struct tty_driver *tty_drv;
-	int tty_idx;
-	unsigned long flags;
-};
-
 /*
  * Callback functions from the tty port.
  */
