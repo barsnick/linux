@@ -327,6 +327,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 	struct qcauart *qca;
 	const char *mac;
 	u32 speed = 115200;
+	char parity;
 	int ret;
 
 	if (!qcauart_dev)
@@ -370,8 +371,27 @@ static int qca_uart_probe(struct serdev_device *serdev)
 		goto free;
 	}
 
+	switch (serdev_device_get_parity(serdev)) {
+	case SERDEV_PARITY_NONE:
+		parity = 'N';
+		break;
+	case SERDEV_PARITY_ODD:
+		parity = 'O';
+		break;
+	case SERDEV_PARITY_EVEN:
+		parity = 'E';
+		break;
+	default:
+		parity = '?';
+		break;
+	}
+
 	speed = serdev_device_set_baudrate(serdev, speed);
-	dev_info(&serdev->dev, "Using baudrate: %u\n", speed);
+	dev_info(&serdev->dev, "Using UART settings: %u baud, %u%c%u\n",
+			       speed,
+			       serdev_device_get_data_bits(serdev),
+			       parity,
+			       serdev_device_get_stop_bits(serdev));
 
 	serdev_device_set_flow_control(serdev, false);
 
