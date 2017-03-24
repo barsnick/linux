@@ -167,6 +167,50 @@ static void ttyport_set_flow_control(struct serdev_controller *ctrl, bool enable
 	tty_set_termios(tty, &ktermios);
 }
 
+static int ttyport_get_data_bits(struct serdev_controller *ctrl)
+{
+	struct serport *serport = serdev_controller_get_drvdata(ctrl);
+	struct tty_struct *tty = serport->tty;
+	struct ktermios ktermios = tty->termios;
+
+	switch (ktermios.c_cflag & CSIZE) {
+	case CS5:
+		return 5;
+	case CS6:
+		return 6;
+	case CS7:
+		return 7;
+	case CS8:
+		return 8;
+	}
+
+	return 0;
+}
+
+static int ttyport_get_parity(struct serdev_controller *ctrl)
+{
+	struct serport *serport = serdev_controller_get_drvdata(ctrl);
+	struct tty_struct *tty = serport->tty;
+	struct ktermios ktermios = tty->termios;
+
+	if (!(ktermios.c_cflag & PARENB))
+		return SERDEV_PARITY_NONE;
+
+	if (ktermios.c_cflag & PARODD)
+		return SERDEV_PARITY_ODD;
+
+	return SERDEV_PARITY_EVEN;
+}
+
+static int ttyport_get_stop_bits(struct serdev_controller *ctrl)
+{
+	struct serport *serport = serdev_controller_get_drvdata(ctrl);
+	struct tty_struct *tty = serport->tty;
+	struct ktermios ktermios = tty->termios;
+
+	return (ktermios.c_cflag & CSTOPB) ? 2 : 1;
+}
+
 static const struct serdev_controller_ops ctrl_ops = {
 	.write_buf = ttyport_write_buf,
 	.write_flush = ttyport_write_flush,
@@ -175,6 +219,9 @@ static const struct serdev_controller_ops ctrl_ops = {
 	.close = ttyport_close,
 	.set_flow_control = ttyport_set_flow_control,
 	.set_baudrate = ttyport_set_baudrate,
+	.get_data_bits = ttyport_get_data_bits,
+	.get_parity = ttyport_get_parity,
+	.get_stop_bits = ttyport_get_stop_bits,
 };
 
 struct device *serdev_tty_port_register(struct tty_port *port,

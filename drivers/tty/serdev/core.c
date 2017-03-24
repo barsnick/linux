@@ -173,6 +173,39 @@ void serdev_device_set_flow_control(struct serdev_device *serdev, bool enable)
 }
 EXPORT_SYMBOL_GPL(serdev_device_set_flow_control);
 
+int serdev_device_get_data_bits(struct serdev_device *serdev)
+{
+	struct serdev_controller *ctrl = serdev->ctrl;
+
+	if (!ctrl || !ctrl->ops->get_data_bits)
+		return -EINVAL;
+
+	return ctrl->ops->get_data_bits(ctrl);
+}
+EXPORT_SYMBOL_GPL(serdev_device_get_data_bits);
+
+int serdev_device_get_parity(struct serdev_device *serdev)
+{
+	struct serdev_controller *ctrl = serdev->ctrl;
+
+	if (!ctrl || !ctrl->ops->get_parity)
+		return -EINVAL;
+
+	return ctrl->ops->get_parity(ctrl);
+}
+EXPORT_SYMBOL_GPL(serdev_device_get_parity);
+
+int serdev_device_get_stop_bits(struct serdev_device *serdev)
+{
+	struct serdev_controller *ctrl = serdev->ctrl;
+
+	if (!ctrl || !ctrl->ops->get_stop_bits)
+		return -EINVAL;
+
+	return ctrl->ops->get_stop_bits(ctrl);
+}
+EXPORT_SYMBOL_GPL(serdev_device_get_stop_bits);
+
 static int serdev_drv_probe(struct device *dev)
 {
 	const struct serdev_device_driver *sdrv = to_serdev_device_driver(dev->driver);
