@@ -118,7 +118,7 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 			qca->rx_skb->protocol = eth_type_trans(
 						qca->rx_skb, qca->rx_skb->dev);
 			qca->rx_skb->ip_summed = CHECKSUM_UNNECESSARY;
-			netif_rx_ni(qca->rx_skb);
+			netif_rx(qca->rx_skb);
 			qca->rx_skb = netdev_alloc_skb(qca->net_dev,
 						       qca->net_dev->mtu +
 						       VLAN_ETH_HLEN);
