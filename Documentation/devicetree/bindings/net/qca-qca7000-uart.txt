@@ -1,0 +1,31 @@
+* Qualcomm QCA7000 (Ethernet over UART protocol)
+
+Note: This binding applies in case the QCA7000 is configured as a
+UART slave device. It is possible to preconfigure the UART settings
+of the QCA7000 firmware, which can't be changed during runtime.
+
+Required properties:
+- compatible        : Should be "qca,qca7000-uart"
+
+Optional properties:
+- local-mac-address : 6 bytes, Specifies MAC address
+- current-speed     : Specifies the serial device speed in
+		      bits per second (default = 115200), which is
+		      predefined by the QCA7000 firmware configuration
+
+Example:
+
+/* Freescale i.MX28 UART */
+auart0: serial@8006a000 {
+	compatible = "fsl,imx28-auart", "fsl,imx23-auart";
+	reg = <0x8006a000 0x2000>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&auart0_2pins_a>;
+	status = "okay";
+
+	qca7000: ethernet {
+		compatible = "qca,qca7000-uart";
+		local-mac-address = [ A0 B0 C0 D0 E0 F0 ];
+		current-speed = <38400>;
+	};
+};
