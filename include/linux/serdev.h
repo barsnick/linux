@@ -16,6 +16,10 @@
 #include <linux/types.h>
 #include <linux/device.h>
 
+#define SERDEV_PARITY_NONE	0
+#define SERDEV_PARITY_ODD	1
+#define SERDEV_PARITY_EVEN	2
+
 struct serdev_controller;
 struct serdev_device;
 
@@ -81,6 +85,9 @@ struct serdev_controller_ops {
 	void (*close)(struct serdev_controller *);
 	void (*set_flow_control)(struct serdev_controller *, bool);
 	unsigned int (*set_baudrate)(struct serdev_controller *, unsigned int);
+	int (*get_data_bits)(struct serdev_controller *);
+	int (*get_parity)(struct serdev_controller *);
+	int (*get_stop_bits)(struct serdev_controller *);
 };
 
 /**
@@ -189,6 +196,9 @@ void serdev_device_set_flow_control(struct serdev_device *, bool);
 int serdev_device_write_buf(struct serdev_device *, const unsigned char *, size_t);
 void serdev_device_write_flush(struct serdev_device *);
 int serdev_device_write_room(struct serdev_device *);
+int serdev_device_get_data_bits(struct serdev_device *);
+int serdev_device_get_parity(struct serdev_device *);
+int serdev_device_get_stop_bits(struct serdev_device *);
 
 /*
  * serdev device driver functions
@@ -231,6 +241,18 @@ static inline void serdev_device_write_flush(struct serdev_device *sdev) {}
 static inline int serdev_device_write_room(struct serdev_device *sdev)
 {
 	return 0;
+}
+static inline int serdev_device_get_data_bits(struct serdev_device *sdev)
+{
+	return -ENODEV;
+}
+static inline int serdev_device_get_parity(struct serdev_device *sdev)
+{
+	return -ENODEV;
+}
+static inline int serdev_device_get_stop_bits(struct serdev_device *sdev)
+{
+	return -ENODEV;
 }
 
 #define serdev_device_driver_register(x)
