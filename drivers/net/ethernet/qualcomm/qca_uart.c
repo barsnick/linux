@@ -102,7 +102,6 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 			n_stats->rx_dropped++;
 			break;
 		default:
-			qca->rx_skb->dev = qca->net_dev;
 			n_stats->rx_packets++;
 			n_stats->rx_bytes += retcode;
 			skb_put(qca->rx_skb, retcode);
