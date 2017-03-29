@@ -70,8 +70,9 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 	size_t i;
 
 	if (!qca->rx_skb) {
-		qca->rx_skb = netdev_alloc_skb(qca->net_dev, qca->net_dev->mtu +
-					       VLAN_ETH_HLEN);
+		qca->rx_skb = netdev_alloc_skb_ip_align(qca->net_dev,
+							qca->net_dev->mtu +
+							VLAN_ETH_HLEN);
 		if (!qca->rx_skb) {
 			n_stats->rx_errors++;
 			n_stats->rx_dropped++;
@@ -109,9 +110,9 @@ qca_tty_receive(struct serdev_device *serdev, const unsigned char *data,
 						qca->rx_skb, qca->rx_skb->dev);
 			qca->rx_skb->ip_summed = CHECKSUM_UNNECESSARY;
 			netif_rx_ni(qca->rx_skb);
-			qca->rx_skb = netdev_alloc_skb(qca->net_dev,
-						       qca->net_dev->mtu +
-						       VLAN_ETH_HLEN);
+			qca->rx_skb = netdev_alloc_skb_ip_align(qca->net_dev,
+								qca->net_dev->mtu +
+								VLAN_ETH_HLEN);
 			if (!qca->rx_skb) {
 				netdev_dbg(qca->net_dev, "recv: out of RX resources\n");
 				n_stats->rx_errors++;
@@ -266,8 +267,9 @@ qcauart_netdev_init(struct net_device *dev)
 	dev->mtu = QCAFRM_ETHMAXMTU;
 	dev->type = ARPHRD_ETHER;
 
-	qca->rx_skb = netdev_alloc_skb(qca->net_dev,
-				       qca->net_dev->mtu + VLAN_ETH_HLEN);
+	qca->rx_skb = netdev_alloc_skb_ip_align(qca->net_dev,
+						qca->net_dev->mtu +
+						VLAN_ETH_HLEN);
 	if (!qca->rx_skb)
 		return -ENOMEM;
 
