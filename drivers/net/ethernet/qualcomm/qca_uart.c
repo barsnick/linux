@@ -51,14 +51,12 @@ struct qcauart {
 	struct work_struct tx_work;		/* Flushes transmit buffer   */
 
 	struct serdev_device *serdev;
-
-	unsigned char xbuff[QCAFRM_ETHMAXMTU];	/* transmitter buffer        */
-	unsigned char *xhead;			/* pointer to next XMIT byte */
-	int xleft;				/* bytes left in XMIT queue  */
-
 	struct qcafrm_handle frm_handle;
-
 	struct sk_buff *rx_skb;
+
+	unsigned char *tx_head;			/* pointer to next XMIT byte */
+	int tx_left;				/* bytes left in XMIT queue  */
+	unsigned char *tx_buffer;
 };
 
 static int
@@ -139,7 +137,7 @@ static void qcauart_transmit(struct work_struct *work)
 		return;
 	}
 
-	if (qca->xleft <= 0)  {
+	if (qca->tx_left <= 0)  {
 		/* Now serial buffer is almost free & we can start
 		 * transmission of another packet
 		 */
@@ -149,10 +147,11 @@ static void qcauart_transmit(struct work_struct *work)
 		return;
 	}
 
-	written = serdev_device_write_buf(qca->serdev, qca->xhead, qca->xleft);
+	written = serdev_device_write_buf(qca->serdev, qca->tx_head,
+					  qca->tx_left);
 	if (written > 0) {
-		qca->xleft -= written;
-		qca->xhead += written;
+		qca->tx_left -= written;
+		qca->tx_head += written;
 	}
 	spin_unlock_bh(&qca->lock);
 }
@@ -189,7 +188,7 @@ qcauart_netdev_close(struct net_device *dev)
 
 	spin_lock_bh(&qca->lock);
 	netif_stop_queue(dev);
-	qca->xleft = 0;
+	qca->tx_left = 0;
 	spin_unlock_bh(&qca->lock);
 
 	return 0;
@@ -206,13 +205,15 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	spin_lock(&qca->lock);
 
+	WARN_ON(qca->tx_left);
+
 	if (!netif_running(dev))  {
 		spin_unlock(&qca->lock);
 		netdev_warn(qca->net_dev, "xmit: iface is down\n");
 		goto out;
 	}
 
-	pos = qca->xbuff;
+	pos = qca->tx_buffer;
 
 	if (skb->len < QCAFRM_ETHMINLEN)
 		pad_len = QCAFRM_ETHMINLEN - skb->len;
@@ -231,11 +232,11 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	netif_stop_queue(qca->net_dev);
 
-	written = serdev_device_write_buf(qca->serdev, qca->xbuff,
-					  pos - qca->xbuff);
+	written = serdev_device_write_buf(qca->serdev, qca->tx_buffer,
+					  pos - qca->tx_buffer);
 	if (written > 0) {
-		qca->xleft = (pos - qca->xbuff) - written;
-		qca->xhead = qca->xbuff + written;
+		qca->tx_left = (pos - qca->tx_buffer) - written;
+		qca->tx_head = qca->tx_buffer + written;
 		n_stats->tx_bytes += written;
 	}
 	spin_unlock(&qca->lock);
@@ -261,6 +262,7 @@ static int
 qcauart_netdev_init(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
+	size_t len;
 
 	/* Finish setting up the device info. */
 	dev->mtu = QCAFRM_ETHMAXMTU;
@@ -270,7 +272,12 @@ qcauart_netdev_init(struct net_device *dev)
 						qca->net_dev->mtu +
 						VLAN_ETH_HLEN);
 	if (!qca->rx_skb)
-		return -ENOMEM;
+		return -ENOBUFS;
+
+	len = QCAFRM_HEADER_LEN + QCAFRM_ETHMAXLEN + QCAFRM_FOOTER_LEN;
+	qca->tx_buffer = kmalloc(len, GFP_KERNEL);
+	if (!qca->tx_buffer)
+		return -ENOBUFS;
 
 	return 0;
 }
@@ -280,6 +287,7 @@ qcauart_netdev_uninit(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
+	kfree(qca->tx_buffer);
 	if (qca->rx_skb)
 		dev_kfree_skb(qca->rx_skb);
 }
