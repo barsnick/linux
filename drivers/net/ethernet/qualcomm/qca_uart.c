@@ -177,7 +177,6 @@ qcauart_netdev_open(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
-	qcafrm_fsm_init_uart(&qca->frm_handle);
 	netif_start_queue(qca->net_dev);
 
 	return 0;
@@ -343,6 +342,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 	}
 	qca->net_dev = qcauart_dev;
 	qca->serdev = serdev;
+	qcafrm_fsm_init_uart(&qca->frm_handle);
 
 	spin_lock_init(&qca->lock);
 	INIT_WORK(&qca->tx_work, qcauart_transmit);
