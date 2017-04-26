@@ -25,7 +25,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 
-#include "qca_common.h"
+#include "qca_7k_common.h"
 
 u16
 qcafrm_create_header(u8 *buf, u16 length)

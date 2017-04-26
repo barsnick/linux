@@ -43,7 +43,7 @@
 #include <linux/types.h>
 
 #include "qca_7k.h"
-#include "qca_common.h"
+#include "qca_7k_common.h"
 #include "qca_debug.h"
 #include "qca_spi.h"
 

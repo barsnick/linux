@@ -39,7 +39,7 @@
 #include <linux/skbuff.h>
 #include <linux/types.h>
 
-#include "qca_common.h"
+#include "qca_7k_common.h"
 
 #define QCAUART_DRV_VERSION "0.1.0"
 #define QCAUART_DRV_NAME "qcauart"
