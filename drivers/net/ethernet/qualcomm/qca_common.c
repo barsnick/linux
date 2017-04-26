@@ -121,7 +121,7 @@ qcafrm_fsm_decode(struct qcafrm_handle *handle, u8 *buf, u16 buf_len, u8 recv_by
 		break;
 	case QCAFRM_WAIT_RSVD_BYTE2:
 		len = handle->offset;
-		if (len > buf_len || len < QCAFRM_ETHMINLEN) {
+		if (len > buf_len || len < QCAFRM_MIN_LEN) {
 			ret = QCAFRM_INVLEN;
 			handle->state = handle->init;
 		} else {

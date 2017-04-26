@@ -215,8 +215,8 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	pos = qca->tx_buffer;
 
-	if (skb->len < QCAFRM_ETHMINLEN)
-		pad_len = QCAFRM_ETHMINLEN - skb->len;
+	if (skb->len < QCAFRM_MIN_LEN)
+		pad_len = QCAFRM_MIN_LEN - skb->len;
 
 	pos += qcafrm_create_header(pos, skb->len + pad_len);
 
@@ -265,7 +265,7 @@ qcauart_netdev_init(struct net_device *dev)
 	size_t len;
 
 	/* Finish setting up the device info. */
-	dev->mtu = QCAFRM_ETHMAXMTU;
+	dev->mtu = QCAFRM_MAX_MTU;
 	dev->type = ARPHRD_ETHER;
 
 	qca->rx_skb = netdev_alloc_skb_ip_align(qca->net_dev,
@@ -274,7 +274,7 @@ qcauart_netdev_init(struct net_device *dev)
 	if (!qca->rx_skb)
 		return -ENOBUFS;
 
-	len = QCAFRM_HEADER_LEN + QCAFRM_ETHMAXLEN + QCAFRM_FOOTER_LEN;
+	len = QCAFRM_HEADER_LEN + QCAFRM_MAX_LEN + QCAFRM_FOOTER_LEN;
 	qca->tx_buffer = kmalloc(len, GFP_KERNEL);
 	if (!qca->tx_buffer)
 		return -ENOBUFS;
@@ -314,8 +314,8 @@ qcauart_netdev_setup(struct net_device *dev)
 	dev->tx_queue_len = 100;
 
 	/* MTU range: 46 - 1500 */
-	dev->min_mtu = QCAFRM_ETHMINMTU;
-	dev->max_mtu = QCAFRM_ETHMAXMTU;
+	dev->min_mtu = QCAFRM_MIN_MTU;
+	dev->max_mtu = QCAFRM_MAX_MTU;
 
 	qca = netdev_priv(dev);
 	memset(qca, 0, sizeof(struct qcauart));
