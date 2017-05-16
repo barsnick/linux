@@ -22,6 +22,7 @@
  *   serial converter;
  */
 
+#include <linux/device.h>
 #include <linux/errno.h>
 #include <linux/etherdevice.h>
 #include <linux/if_arp.h>
@@ -266,18 +267,16 @@ static int qcauart_netdev_init(struct net_device *dev)
 	dev->mtu = QCAFRM_MAX_MTU;
 	dev->type = ARPHRD_ETHER;
 
+	len = QCAFRM_HEADER_LEN + QCAFRM_MAX_LEN + QCAFRM_FOOTER_LEN;
+	qca->tx_buffer = devm_kmalloc(&qca->serdev->dev, len, GFP_KERNEL);
+	if (!qca->tx_buffer)
+		return -ENOMEM;
+
 	qca->rx_skb = netdev_alloc_skb_ip_align(qca->net_dev,
 						qca->net_dev->mtu +
 						VLAN_ETH_HLEN);
 	if (!qca->rx_skb)
 		return -ENOBUFS;
-
-	len = QCAFRM_HEADER_LEN + QCAFRM_MAX_LEN + QCAFRM_FOOTER_LEN;
-	qca->tx_buffer = kmalloc(len, GFP_KERNEL);
-	if (!qca->tx_buffer) {
-		dev_kfree_skb(qca->rx_skb);
-		return -ENOBUFS;
-	}
 
 	return 0;
 }
@@ -286,7 +285,6 @@ static void qcauart_netdev_uninit(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
-	kfree(qca->tx_buffer);
 	if (qca->rx_skb)
 		dev_kfree_skb(qca->rx_skb);
 }
