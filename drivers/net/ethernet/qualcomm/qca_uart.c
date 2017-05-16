@@ -332,6 +332,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 		return -ENOMEM;
 
 	qcauart_netdev_setup(qcauart_dev);
+	SET_NETDEV_DEV(qcauart_dev, &serdev->dev);
 
 	qca = netdev_priv(qcauart_dev);
 	if (!qca) {
