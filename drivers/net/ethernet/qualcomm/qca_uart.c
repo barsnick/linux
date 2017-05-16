@@ -383,6 +383,7 @@ static int qca_uart_probe(struct serdev_device *serdev)
 	if (ret) {
 		dev_err(&serdev->dev, "Unable to register net device %s\n",
 			qcauart_dev->name);
+		serdev_device_close(serdev);
 		goto free;
 	}
 
