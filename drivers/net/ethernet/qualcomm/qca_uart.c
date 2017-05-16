@@ -242,7 +242,7 @@ qcauart_netdev_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	netif_trans_update(dev);
 out:
-	kfree_skb(skb);
+	dev_kfree_skb_any(skb);
 	return NETDEV_TX_OK;
 }
 
