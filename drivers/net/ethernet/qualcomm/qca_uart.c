@@ -301,8 +301,6 @@ static const struct net_device_ops qcauart_netdev_ops = {
 
 static void qcauart_netdev_setup(struct net_device *dev)
 {
-	struct qcauart *qca;
-
 	dev->netdev_ops = &qcauart_netdev_ops;
 	dev->watchdog_timeo = QCAUART_TX_TIMEOUT;
 	dev->priv_flags &= ~IFF_TX_SKB_SHARING;
@@ -311,9 +309,6 @@ static void qcauart_netdev_setup(struct net_device *dev)
 	/* MTU range: 46 - 1500 */
 	dev->min_mtu = QCAFRM_MIN_MTU;
 	dev->max_mtu = QCAFRM_MAX_MTU;
-
-	qca = netdev_priv(dev);
-	memset(qca, 0, sizeof(struct qcauart));
 }
 
 static const struct of_device_id qca_uart_of_match[] = {
