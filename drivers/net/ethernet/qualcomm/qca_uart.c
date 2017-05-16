@@ -273,8 +273,10 @@ static int qcauart_netdev_init(struct net_device *dev)
 
 	len = QCAFRM_HEADER_LEN + QCAFRM_MAX_LEN + QCAFRM_FOOTER_LEN;
 	qca->tx_buffer = kmalloc(len, GFP_KERNEL);
-	if (!qca->tx_buffer)
+	if (!qca->tx_buffer) {
+		dev_kfree_skb(qca->rx_skb);
 		return -ENOBUFS;
+	}
 
 	return 0;
 }
