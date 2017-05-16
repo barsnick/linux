@@ -185,8 +185,10 @@ static int qcauart_netdev_close(struct net_device *dev)
 {
 	struct qcauart *qca = netdev_priv(dev);
 
-	spin_lock_bh(&qca->lock);
 	netif_stop_queue(dev);
+	flush_work(&qca->tx_work);
+
+	spin_lock_bh(&qca->lock);
 	qca->tx_left = 0;
 	spin_unlock_bh(&qca->lock);
 
@@ -395,11 +397,13 @@ static void qca_uart_remove(struct serdev_device *serdev)
 {
 	struct qcauart *qca = serdev_device_get_drvdata(serdev);
 
+	netif_carrier_off(qca->net_dev);
+	cancel_work_sync(&qca->tx_work);
+	unregister_netdev(qca->net_dev);
+
 	/* Flush any pending characters in the driver. */
 	serdev_device_close(serdev);
 
-	netif_carrier_off(qca->net_dev);
-	unregister_netdev(qca->net_dev);
 	free_netdev(qca->net_dev);
 }
 
