@@ -314,7 +314,7 @@ static void qcauart_netdev_setup(struct net_device *dev)
 
 static const struct of_device_id qca_uart_of_match[] = {
 	{
-	 .compatible = "qca,qca7000-uart",
+	 .compatible = "qca,qca7000",
 	},
 	{}
 };
