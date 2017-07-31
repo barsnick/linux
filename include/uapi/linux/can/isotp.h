@@ -3,8 +3,6 @@
  *
  * Definitions for isotp CAN sockets
  *
- * $Id$
- *
  * Author: Oliver Hartkopp <oliver.hartkopp@volkswagen.de>
  * Copyright (c) 2008 Volkswagen Group Electronic Research
  * All rights reserved.
@@ -92,7 +90,6 @@ struct can_isotp_ll_options {
 				/* Obsolete when the BRS flag is fixed	*/
 				/* by the CAN netdriver configuration	*/
 };
-
 
 /* flags for isotp behaviour */
 

@@ -66,7 +66,6 @@
 #include <linux/can.h>
 #include <linux/can/core.h>
 #include <linux/can/isotp.h>
-#include <linux/can/skb.h>
 #include <net/sock.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
 #include <net/net_namespace.h>
@@ -75,7 +74,7 @@
 #include "compat.h"
 #endif
 
-#define CAN_ISOTP_VERSION "20161031"
+#define CAN_ISOTP_VERSION "20170725"
 static __initdata const char banner[] =
 	KERN_INFO "can: isotp protocol (rev " CAN_ISOTP_VERSION " alpha)\n";
 
@@ -91,7 +90,7 @@ MODULE_ALIAS("can-proto-6");
 #define DBG(fmt, args...) (printk( KERN_DEBUG "can-isotp: %s: " fmt, \
 				   __func__, ##args))
 #undef DBG
-#define DBG(fmt, args...) 
+#define DBG(fmt, args...)
 
 #define SINGLE_MASK(id) ((id & CAN_EFF_FLAG) ? \
 			 (CAN_EFF_MASK | CAN_EFF_FLAG | CAN_RTR_FLAG) : \
@@ -173,14 +172,6 @@ static enum hrtimer_restart isotp_rx_timer_handler(struct hrtimer *hrtimer)
 	struct isotp_sock *so = container_of(hrtimer, struct isotp_sock,
 					     rxtimer);
 	if (so->rx.state == ISOTP_WAIT_DATA) {
-#if 0
-		struct sock *sk = &so->sk;
-
-		/* report 'timeout' */
-		sk->sk_err = E?????;
-		if (!sock_flag(sk, SOCK_DEAD))
-			sk->sk_error_report(sk);
-#endif
 		DBG("we did not get new data frames in time.\n");
 
 		/* reset tx state */
@@ -215,7 +206,7 @@ static int isotp_send_fc(struct sock *sk, int ae, u8 flowstatus)
 	if (!nskb)
 		return 1;
 
-	dev = dev_get_by_index(&init_net, so->ifindex);
+	dev = dev_get_by_index(sock_net(sk), so->ifindex);
 	if (!dev) {
 		kfree_skb(nskb);
 		return 1;
@@ -364,7 +355,7 @@ static int isotp_rcv_fc(struct isotp_sock *so, struct canfd_frame *cf, int ae)
 		so->txfc.stmin = cf->data[ae + 2];
 
 		/* fix wrong STmin values according spec */
-		if ((so->txfc.stmin > 0x7F) && 
+		if ((so->txfc.stmin > 0x7F) &&
 		    ((so->txfc.stmin < 0xF1) || (so->txfc.stmin > 0xF9)))
 			so->txfc.stmin = 0x7F;
 
@@ -372,7 +363,7 @@ static int isotp_rcv_fc(struct isotp_sock *so, struct canfd_frame *cf, int ae)
 		/* add transmission time for CAN frame N_As */
 		so->tx_gap = ktime_add_ns(so->tx_gap, so->opt.frame_txtime);
 		/* add waiting time for consecutive frames N_Cs */
-		if (so->opt.flags & CAN_ISOTP_FORCE_TXSTMIN) 
+		if (so->opt.flags & CAN_ISOTP_FORCE_TXSTMIN)
 			so->tx_gap = ktime_add_ns(so->tx_gap,
 						  so->force_tx_stmin);
 		else if (so->txfc.stmin < 0x80)
@@ -387,7 +378,11 @@ static int isotp_rcv_fc(struct isotp_sock *so, struct canfd_frame *cf, int ae)
 
 	DBG("FC frame: FS %d, BS %d, STmin 0x%02X, tx_gap %lld\n",
 	    cf->data[ae] & 0x0F & 0x0F, so->txfc.bs, so->txfc.stmin,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+	    (long long)so->tx_gap);
+#else
 	    (long long)so->tx_gap.tv64);
+#endif
 
 	switch (cf->data[ae] & 0x0F) {
 
@@ -526,7 +521,7 @@ static int isotp_rcv_cf(struct sock *sk, struct canfd_frame *cf, int ae,
 		    so->force_rx_stmin)
 			return 0;
 
-		so->lastrxcf_tstamp = skb->tstamp; 
+		so->lastrxcf_tstamp = skb->tstamp;
 	}
 
 	hrtimer_cancel(&so->rxtimer);
@@ -726,10 +721,10 @@ static void isotp_create_fframe(struct canfd_frame *cf, struct isotp_sock *so,
 		/* use 32 bit FF_DL notation */
 		cf->data[ae] = N_PCI_FF;
 		cf->data[ae + 1] = 0;
-		cf->data[ae + 2] = (u8) (so->tx.len >> 24) & 0xFFU;;
-		cf->data[ae + 3] = (u8) (so->tx.len >> 16) & 0xFFU;;
-		cf->data[ae + 4] = (u8) (so->tx.len >> 8) & 0xFFU;;
-		cf->data[ae + 5] = (u8) so->tx.len & 0xFFU;;
+		cf->data[ae + 2] = (u8) (so->tx.len >> 24) & 0xFFU;
+		cf->data[ae + 3] = (u8) (so->tx.len >> 16) & 0xFFU;
+		cf->data[ae + 4] = (u8) (so->tx.len >> 8) & 0xFFU;
+		cf->data[ae + 5] = (u8) so->tx.len & 0xFFU;
 		ff_pci_sz = FF_PCI_SZ32;
 	} else {
 		/* use 12 bit FF_DL notation */
@@ -764,12 +759,6 @@ static void isotp_tx_timer_tsklet(unsigned long data)
 
 		DBG("we did not get FC frame in time.\n");
 
-#if 0
-		/* report 'communication error on send' */
-		sk->sk_err = ECOMM;
-		if (!sock_flag(sk, SOCK_DEAD))
-			sk->sk_error_report(sk);
-#endif
 		/* reset tx state */
 		so->tx.state = ISOTP_IDLE;
 		wake_up_interruptible(&so->wait);
@@ -781,7 +770,7 @@ static void isotp_tx_timer_tsklet(unsigned long data)
 
 		DBG("next pdu to send.\n");
 
-		dev = dev_get_by_index(&init_net, so->ifindex);
+		dev = dev_get_by_index(sock_net(sk), so->ifindex);
 		if (!dev)
 			break;
 
@@ -828,11 +817,16 @@ isotp_tx_burst:
 				      ktime_add(ktime_get(), ktime_set(1,0)),
 				      HRTIMER_MODE_ABS);
 			break;
-		} 
+		}
 
 		/* no gap between data frames needed => use burst mode */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+		if (!so->tx_gap)
+			goto isotp_tx_burst;
+#else
 		if (!so->tx_gap.tv64)
 			goto isotp_tx_burst;
+#endif
 
 		/* start timer to send next data frame with correct delay */
 		dev_put(dev);
@@ -894,7 +888,7 @@ static int isotp_sendmsg(struct kiocb *iocb, struct socket *sock,
 	if (err < 0)
 		return err;
 
-	dev = dev_get_by_index(&init_net, so->ifindex);
+	dev = dev_get_by_index(sock_net(sk), so->ifindex);
 	if (!dev)
 		return -ENXIO;
 
@@ -1019,11 +1013,13 @@ static int isotp_release(struct socket *sock)
 {
 	struct sock *sk = sock->sk;
 	struct isotp_sock *so;
+	struct net *net;
 
 	if (!sk)
 		return 0;
 
 	so = isotp_sk(sk);
+	net = sock_net(sk);
 
 	/* wait for complete transmission of current pdu */
 	wait_event_interruptible(so->wait, so->tx.state == ISOTP_IDLE);
@@ -1041,9 +1037,13 @@ static int isotp_release(struct socket *sock)
 		if (so->ifindex) {
 			struct net_device *dev;
 
-			dev = dev_get_by_index(&init_net, so->ifindex);
+			dev = dev_get_by_index(net, so->ifindex);
 			if (dev) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+				can_rx_unregister(net, dev, so->rxid,
+#else
 				can_rx_unregister(dev, so->rxid,
+#endif
 						  SINGLE_MASK(so->rxid),
 						  isotp_rcv, sk);
 				dev_put(dev);
@@ -1068,6 +1068,7 @@ static int isotp_bind(struct socket *sock, struct sockaddr *uaddr, int len)
 	struct sockaddr_can *addr = (struct sockaddr_can *)uaddr;
 	struct sock *sk = sock->sk;
 	struct isotp_sock *so = isotp_sk(sk);
+	struct net *net = sock_net(sk);
 	int ifindex;
 	struct net_device *dev;
 	int err = 0;
@@ -1093,7 +1094,7 @@ static int isotp_bind(struct socket *sock, struct sockaddr *uaddr, int len)
 	    addr->can_addr.tp.tx_id == so->txid)
 		goto out;
 
-	dev = dev_get_by_index(&init_net, addr->can_ifindex);
+	dev = dev_get_by_index(net, addr->can_ifindex);
 	if (!dev) {
 		err = -ENODEV;
 		goto out;
@@ -1113,17 +1114,29 @@ static int isotp_bind(struct socket *sock, struct sockaddr *uaddr, int len)
 
 	ifindex = dev->ifindex;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+	can_rx_register(net, dev, addr->can_addr.tp.rx_id,
+#else
 	can_rx_register(dev, addr->can_addr.tp.rx_id,
-			SINGLE_MASK(addr->can_addr.tp.rx_id),
-			isotp_rcv, sk, "isotp");
+#endif
+			SINGLE_MASK(addr->can_addr.tp.rx_id), isotp_rcv, sk,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,9,11)
+			"isotp", sk);
+#else
+			"isotp");
+#endif
 	dev_put(dev);
 
 	if (so->bound) {
 		/* unregister old filter */
 		if (so->ifindex) {
-			dev = dev_get_by_index(&init_net, so->ifindex);
+			dev = dev_get_by_index(net, so->ifindex);
 			if (dev) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+				can_rx_unregister(net, dev, so->rxid,
+#else
 				can_rx_unregister(dev, so->rxid,
+#endif
 						  SINGLE_MASK(so->rxid),
 						  isotp_rcv, sk);
 				dev_put(dev);
@@ -1137,7 +1150,7 @@ static int isotp_bind(struct socket *sock, struct sockaddr *uaddr, int len)
 	so->txid = addr->can_addr.tp.tx_id;
 	so->bound = 1;
 
- out:
+out:
 	release_sock(sk);
 
 	if (notify_enetdown) {
@@ -1308,7 +1321,6 @@ static int isotp_getsockopt(struct socket *sock, int level, int optname,
 	return 0;
 }
 
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,0)
 static int isotp_notifier(struct notifier_block *nb, unsigned long msg,
 			  void *ptr)
@@ -1323,7 +1335,10 @@ static int isotp_notifier(struct notifier_block *nb,
 	struct isotp_sock *so = container_of(nb, struct isotp_sock, notifier);
 	struct sock *sk = &so->sk;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+	if (!net_eq(dev_net(dev), sock_net(sk)))
+		return NOTIFY_DONE;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,26)
 	if (dev_net(dev) != &init_net)
 		return NOTIFY_DONE;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,24)
@@ -1343,7 +1358,12 @@ static int isotp_notifier(struct notifier_block *nb,
 		lock_sock(sk);
 		/* remove current filters & unregister */
 		if (so->bound)
-			can_rx_unregister(dev, so->rxid, SINGLE_MASK(so->rxid),
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,12,0)
+			can_rx_unregister(dev_net(dev), dev, so->rxid,
+#else
+			can_rx_unregister(dev, so->rxid,
+#endif
+					  SINGLE_MASK(so->rxid),
 					  isotp_rcv, sk);
 
 		so->ifindex = 0;
@@ -1364,7 +1384,6 @@ static int isotp_notifier(struct notifier_block *nb,
 
 	return NOTIFY_DONE;
 }
-
 
 static int isotp_init(struct sock *sk)
 {
@@ -1406,7 +1425,6 @@ static int isotp_init(struct sock *sk)
 
 	return 0;
 }
-
 
 static const struct proto_ops isotp_ops = {
 	.family        = PF_CAN,
